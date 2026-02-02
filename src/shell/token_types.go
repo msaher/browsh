@@ -11,3 +11,4 @@ const (
 	TokenOut
 	TokenIn
 	TokenPipe
+	TokenOrIf
