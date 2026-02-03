@@ -11,3 +11,4 @@ export function addCompletion(input: HTMLInputElement, item: string) {
     // return [0, 0] as const
     return
   }
+
