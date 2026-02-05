@@ -9,3 +9,4 @@ var tokens = []string {
 	"TokenWord",
 	"TokenFd",
 	"TokenString",
+	"TokenDupOut",
