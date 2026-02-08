@@ -6,3 +6,4 @@ type TokenType int
 const (
 	TokenWord TokenType = iota
 	TokenFd
+	TokenString
