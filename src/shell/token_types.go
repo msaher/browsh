@@ -8,3 +8,4 @@ const (
 	TokenFd
 	TokenString
 	TokenDupOut
+	TokenOut
