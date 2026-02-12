@@ -4,3 +4,4 @@ package shell
 type TokenType int
 
 const (
+	TokenWord TokenType = iota
