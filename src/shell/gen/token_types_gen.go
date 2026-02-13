@@ -10,3 +10,4 @@ var tokens = []string {
 	"TokenFd",
 	"TokenString",
 	"TokenDupOut",
+	"TokenOut",
