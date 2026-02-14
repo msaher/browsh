@@ -1,0 +1,36 @@
+:root {
+    --bg: #0f1115;
+    --fg: #e6e8eb;
+    --fg-muted: #a1a7b3;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: monospace;
+}
+
+.repl {
+    display: flex;
+    align-items: center;
+}
+
+.repl label {
+    margin-right: 8px;
+}
+
+.repl input {
+    background-color: transparent;
+    border: none;
+    color: var(--fg);
+    outline: none;
+    font-family: monospace;
+    font-size: 1em;
+    flex: 1;
+}
+
+.repl input:disabled {
+    color: var(--fg-muted);
+}
