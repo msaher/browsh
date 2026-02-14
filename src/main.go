@@ -109,6 +109,23 @@ func logHandler(next http.Handler) http.Handler {
 	})
 }
 
+func enableCors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// TODO: make this stricter
+		// allow any origin
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		// handle preflight
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, PUT, PATCH, DELETE")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func makeHandler() http.Handler {
 	mux := http.NewServeMux()
 
@@ -126,7 +143,10 @@ func makeHandler() http.Handler {
 	})
 	mux.HandleFunc("POST /run", runCmd)
 
-	handler := logHandler(mux)
+	var handler http.Handler
+	handler = mux
+	handler = enableCors(handler)
+	handler = logHandler(handler)
 	return handler
 }
 
