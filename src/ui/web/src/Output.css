@@ -83,3 +83,24 @@
 .hidden {
   display: none;
 }
+
+.copy-btn {
+  background: transparent;
+  border: none;
+  color: #858585;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+  transition: all 0.2s;
+}
+
+.copy-btn:hover {
+  color: #d4d4d4;
+  background: #3e3e3e;
+}
+
+.copy-btn:active {
+  transform: scale(0.95);
+}

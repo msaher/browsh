@@ -24,6 +24,7 @@ const Output: Component<{
   setRef?: (el: HTMLDivElement) => void,
   hidden: bool
 }> = (props) => {
+  let outputRef: HTMLDivElement | undefined;
 
   const formatDuration = (start: Date, end?: Date): string => {
     const endTime = end || new Date();
@@ -34,6 +35,7 @@ const Output: Component<{
     const secs = Math.floor((ms % 60000) / 1000);
     return `${mins}m ${secs}s`;
   };
+
 
   const getStatusIcon = (status: string, exitCode?: number): string => {
     if (status === 'running') return '▶';
@@ -64,6 +66,20 @@ const Output: Component<{
           )}
         </div>
         <div class="output-header-right">
+          <button
+            class="copy-btn"
+            onClick={() => {
+              const text = outputRef.textContent
+              navigator.clipboard.writeText(text);
+            }}
+            title="Copy output"
+            >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+
           {props.metadata?.startedAt && (
             <span class="duration">
               {formatDuration(props.metadata.startedAt, props.metadata.exitedAt)}
@@ -74,7 +90,10 @@ const Output: Component<{
           )}
         </div>
       </div>
-      <div class="output" ref={el => props.setRef?.(el)} />
+      <div class="output" ref={el => {
+        outputRef = el
+        props.setRef?.(el)
+      }}/>
     </div>
   );
 
