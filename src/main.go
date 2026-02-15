@@ -49,9 +49,10 @@ func newCmdMetadata(cmd *Cmd) *CmdMetadata {
 	metadata.CmdId = cmd.Id
 	if cmd.Process == nil {
 		if cmd.Err != nil {
+			// TODO: be more elaborate
 			metadata.Status = "lookup error"
 		} else {
-			metadata.Status = "unstarted"
+			metadata.Status = "waiting"
 		}
 		return metadata
 	}
