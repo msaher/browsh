@@ -59,10 +59,10 @@ const Prompt: Component<{
   });
 
   // TODO: handle errors
-  const fetchMetadata = async () => {
+  const updateMetadata = async () => {
     const res = await fetch(`${API_URL}/cmd/${cmdId}/metadata`);
     const data = await res.json();
-    return data.metadata;
+    setMetadata(data.metadata);
   }
 
   const appendOutput = (text: string) => {
@@ -76,18 +76,14 @@ const Prompt: Component<{
   const startSession = (cmdId: number) => {
     ws = new WebSocket(`${WEBSOCKET_URL}/ws/${cmdId}`);
     ws.onopen = async () => {
-      const md = await fetchMetadata()
-      console.log(md)
-      setMetadata(md)
+      await updateMetadata()
       setShowOutput(true)
       console.log("WebSocket connected");
     };
 
     ws.onclose = async () => {
-      const md = await fetchMetadata()
+      await updateMetadata()
       console.log("WebSocket closed");
-      console.log(md)
-      setMetadata(md)
     };
 
     ws.onerror = (err) => {
