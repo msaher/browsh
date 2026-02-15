@@ -13,7 +13,9 @@ interface ProcessMetadata {
   cmdId: number
   pid?: number
   status: string
-  exitCode?: number;
+  exitCode?: number
+  startedAt: Date
+  exitedAt?: Date
 }
 
 const Output: Component<{
@@ -62,7 +64,13 @@ const Prompt: Component<{
   const updateMetadata = async () => {
     const res = await fetch(`${API_URL}/cmd/${cmdId}/metadata`);
     const data = await res.json();
-    setMetadata(data.metadata);
+    const md = data.metadata
+    const metadata = {
+      ...md,
+      startedAt: new Date(md.startedAt),
+      exitedAt: md.exitedAt ? new Date(md.exitedAt) : undefined,
+    }
+    setMetadata(metadata);
   }
 
   const appendOutput = (text: string) => {

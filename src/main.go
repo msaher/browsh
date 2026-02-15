@@ -14,13 +14,18 @@ import (
 	"errors"
 	"os/exec"
 	"strconv"
+	"time"
+
 	"github.com/gorilla/websocket"
 )
 
 // TODO: multi-user support. Use locks?
 
+// rename to TrackedCmd?
 type Cmd struct {
 	Id int64
+	StartedAt time.Time
+	ExitedAt time.Time
 	*exec.Cmd
 }
 
@@ -33,7 +38,7 @@ type Envelope map[string]any
 
 func addCmd(app *App, cmd *exec.Cmd) int64 {
 	app.LastId++
-	app.Cmds[app.LastId] = &Cmd{app.LastId, cmd}
+	app.Cmds[app.LastId] = &Cmd{Id: app.LastId, Cmd: cmd}
 	return app.LastId
 }
 
@@ -41,12 +46,17 @@ type CmdMetadata struct {
 	CmdId int64 `json:"cmdId"`
 	Pid	int `json:"pid,omitempty"`
 	Status string `json:"status,omitempty"`
+	StartedAt time.Time `json:"startedAt,omitempty"`
 	ExitCode int  `json:"exitCode,omitempty"`
+	ExitedAt time.Time `json:"exitedAt,omitempty"`
 }
 
 func newCmdMetadata(cmd *Cmd) *CmdMetadata {
-	metadata := &CmdMetadata{}
-	metadata.CmdId = cmd.Id
+	metadata := &CmdMetadata{
+		CmdId: cmd.Id,
+		StartedAt: cmd.StartedAt,
+		ExitedAt: cmd.ExitedAt,
+	}
 	if cmd.Process == nil {
 		if cmd.Err != nil {
 			// TODO: be more elaborate
@@ -111,6 +121,7 @@ func (app *App) runCmdSocket(cmd *Cmd, conn *websocket.Conn) error {
 	    }
 	}()
 
+	cmd.StartedAt = time.Now()
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -118,6 +129,7 @@ func (app *App) runCmdSocket(cmd *Cmd, conn *websocket.Conn) error {
 	go func() {
 		// run .wait() to populate .ProcessState
 		_ = cmd.Wait()
+		cmd.ExitedAt = time.Now()
 		conn.Close()
 	}()
 
