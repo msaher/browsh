@@ -13,13 +13,23 @@ import (
 	"encoding/json"
 	"errors"
 	"os/exec"
+	"strconv"
 	"github.com/gorilla/websocket"
 )
 
-// TODO: temp
-var gCmd *exec.Cmd
+type Cmd struct {
+	Id int64
+	*exec.Cmd
+}
 
-func runCmdSocket(cmd *exec.Cmd, conn *websocket.Conn) error {
+type App struct {
+	Cmds map[int64]*Cmd
+	LastId int64
+}
+
+type Envelope map[string]any
+
+func (app *App) runCmdSocket(cmd *Cmd, conn *websocket.Conn) error {
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
@@ -60,11 +70,25 @@ func runCmdSocket(cmd *exec.Cmd, conn *websocket.Conn) error {
 	    }
 	}()
 
-	cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func cmdWebsocket(w http.ResponseWriter, r *http.Request) {
+func (app *App) cmdWebsocket(w http.ResponseWriter, r *http.Request) {
+	id := int64PathValue(r, "id")
+	// TODO:
+	if id == 0 {
+		panic("got id 0")
+	}
+	cmd := app.Cmds[id]
+	// TODO: not found
+	if cmd == nil {
+		panic("cant find cmd in app.cmds")
+	}
+
 	var upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -79,10 +103,11 @@ func cmdWebsocket(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
-	runCmdSocket(gCmd, conn)
+
+	app.runCmdSocket(cmd, conn)
 }
 
-func runCmd(w http.ResponseWriter, r *http.Request) {
+func (app *App) registerCmd(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
 		Argv []string `json:"argv"`
 	}
@@ -93,7 +118,11 @@ func runCmd(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	gCmd = exec.Command(payload.Argv[0], payload.Argv[1:]...)
+	c := exec.Command(payload.Argv[0], payload.Argv[1:]...)
+	cmd := &Cmd{Id: app.LastId+1, Cmd: c}
+	app.Cmds[cmd.Id] = cmd
+
+	writeJson(w, http.StatusOK, Envelope{"id": cmd.Id}, nil)
 }
 
 //go:embed ui
@@ -128,6 +157,12 @@ func enableCors(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func int64PathValue(r *http.Request, name string) int64 {
+	valueStr := r.PathValue(name)
+	valueInt, _ := strconv.Atoi(valueStr)
+	return int64(valueInt)
 }
 
 func readJson(w http.ResponseWriter, r *http.Request, dst any) error {
@@ -190,7 +225,29 @@ func readJson(w http.ResponseWriter, r *http.Request, dst any) error {
 	return nil
 }
 
-func makeHandler() http.Handler {
+func writeJson(w http.ResponseWriter, status int, data Envelope, headers http.Header) error {
+	js, err := json.MarshalIndent(data, "", "\t")
+
+	if err != nil {
+		return err
+	}
+
+	// make it easier to see in curl
+	js = append(js, '\n')
+
+	for key, value := range headers {
+		w.Header()[key] = value
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	w.Write(js)
+
+	return nil
+}
+
+
+func makeHandler(app *App) http.Handler {
 	mux := http.NewServeMux()
 
 	staticFiles, err := fs.Sub(uiFiles, "ui/static")
@@ -205,8 +262,8 @@ func makeHandler() http.Handler {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
         http.ServeFile(w, r, "src/ui/index.html")
 	})
-	mux.HandleFunc("POST /run", runCmd)
-	mux.HandleFunc("GET /ws", cmdWebsocket)
+	mux.HandleFunc("POST /run", app.registerCmd)
+	mux.HandleFunc("GET /ws/{id}", app.cmdWebsocket)
 
 	var handler http.Handler
 	handler = mux
@@ -215,14 +272,19 @@ func makeHandler() http.Handler {
 	return handler
 }
 
+func newApp() *App {
+	return &App{Cmds: make(map[int64]*Cmd)}
+}
+
 func entryPoint() int {
+	app := newApp()
 	port := flag.Int("port", 8000, "port")
 	flag.Parse()
 
 	addr := fmt.Sprintf(":%d", *port)
 	server := http.Server {
 		Addr: addr,
-		Handler: makeHandler(),
+		Handler: makeHandler(app),
 	}
 
 	log.Printf("Listening on :%d", *port)

@@ -5,6 +5,7 @@ import { onMount, createSignal } from "solid-js";
 import Comp from './Comp';
 
 const API_URL = import.meta.env.VITE_API_URL;
+const WEBSOCKET_URL = API_URL.replace(/^http/, 'ws')
 
 const Prompt: Component<{ focus?: boolean }> = (props) => {
   let inputRef: HTMLInputElement | undefined;
@@ -24,8 +25,8 @@ const Prompt: Component<{ focus?: boolean }> = (props) => {
   };
 
   let ws: WebSocket | null = null;
-  const startSession = () => {
-    ws = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/ws`);
+  const startSession = (cmdId: number) => {
+    ws = new WebSocket(`${WEBSOCKET_URL}/ws/${cmdId}`);
     ws.onopen = () => {
       console.log("WebSocket connected");
     };
@@ -62,7 +63,9 @@ const Prompt: Component<{ focus?: boolean }> = (props) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ argv }),
       });
-      startSession()
+      const data = await res.json()
+      const cmdId = data.id
+      startSession(cmdId)
     } catch (err) {
       appendOutput(`Error: ${err}`);
     } finally {
