@@ -1,5 +1,6 @@
 import './App.css'
 import './Prompt.css'
+import './Output.css'
 import type { Component } from 'solid-js';
 import { onMount, createSignal } from "solid-js";
 import Comp from './Comp';
@@ -8,12 +9,48 @@ import { For } from "solid-js"
 const API_URL = import.meta.env.VITE_API_URL;
 const WEBSOCKET_URL = API_URL.replace(/^http/, 'ws')
 
+interface ProcessMetadata {
+  cmdId: number
+  pid?: number
+  status: string
+  exitCode?: number;
+}
+
+const Output: Component<{
+  metadata?: ProcessMetadata
+  setRef?: (el: HTMLDivElement) => void,
+  hidden: bool
+}> = (props) => {
+
+  return (
+    <div
+      class="output-container"
+      classList={{
+        hidden: props.hidden
+      }}
+    >
+      <div class="output-header">
+        <div class="output-header">
+          <span>Status: {props.metadata ? props.metadata.status : "pending"}</span>
+          {props.metadata?.pid != null && <span> | PID: {props.metadata.pid}</span>}
+          {props.metadata?.exitCode != null && <span> | Exit: {props.metadata.exitCode}</span>}
+        </div>
+      </div>
+      <div class="output" ref={el => props.setRef?.(el)} />
+    </div>
+  );
+}
+
 const Prompt: Component<{
   focus?: boolean,
   afterStartingSession?: () => void
 }> = (props) => {
+  const [showOutput, setShowOutput] = createSignal<boolean>(false)
+  const [metadata, setMetadata] = createSignal<ProcessMetadata | null>(null)
+
   let inputRef: HTMLInputElement | undefined;
   let outputRef: HTMLDivElement | undefined;
+  let cmdId: number | undefined
 
   onMount(() => {
     if (props.focus && inputRef) {
@@ -21,8 +58,16 @@ const Prompt: Component<{
     }
   });
 
+  // TODO: handle errors
+  const fetchMetadata = async () => {
+    const res = await fetch(`${API_URL}/cmd/${cmdId}/metadata`);
+    const data = await res.json();
+    return data.metadata;
+  }
+
   const appendOutput = (text: string) => {
     const node = outputRef;
+    if (!node) return
     node.textContent += text;
     node.scrollTop = node.scrollHeight;
   };
@@ -30,15 +75,19 @@ const Prompt: Component<{
   let ws: WebSocket | null = null;
   const startSession = (cmdId: number) => {
     ws = new WebSocket(`${WEBSOCKET_URL}/ws/${cmdId}`);
-    ws.onopen = () => {
-      if (outputRef) {
-        outputRef.classList.remove("hidden")
-      }
+    ws.onopen = async () => {
+      const md = await fetchMetadata()
+      console.log(md)
+      setMetadata(md)
+      setShowOutput(true)
       console.log("WebSocket connected");
     };
 
-    ws.onclose = () => {
+    ws.onclose = async () => {
+      const md = await fetchMetadata()
       console.log("WebSocket closed");
+      console.log(md)
+      setMetadata(md)
     };
 
     ws.onerror = (err) => {
@@ -60,7 +109,7 @@ const Prompt: Component<{
       return
     }
     const cmd = inputRef.value;
-    inputRef.disabled = true; // TODO: loading animation
+    inputRef.disabled = true;
     const argv = parseInput(cmd)
 
     try {
@@ -70,8 +119,8 @@ const Prompt: Component<{
         body: JSON.stringify({ argv }),
       });
       const data = await res.json()
-      const cmdId = data.id
-      startSession(cmdId)
+      cmdId = data.id
+      startSession(data.id)
       if (props.afterStartingSession) {
         props.afterStartingSession()
       }
@@ -88,7 +137,11 @@ const Prompt: Component<{
         <label>$</label>
         <input type="text" ref={inputRef} onKeyDown={handleKeyDown}/>
       </div>
-      <div class="prompt-output hidden" ref={outputRef}></div>
+      <Output
+        hidden={!showOutput()}
+        metadata={metadata()}
+        setRef={el => (outputRef = el)}
+      />
     </div>
   );
 };
