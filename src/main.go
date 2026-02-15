@@ -37,6 +37,38 @@ func addCmd(app *App, cmd *exec.Cmd) int64 {
 	return app.LastId
 }
 
+type CmdMetadata struct {
+	CmdId int64 `json:"cmdId"`
+	Pid	int `json:"pid,omitempty"`
+	Status string `json:"status,omitempty"`
+	ExitCode int  `json:"exitCode,omitempty"`
+}
+
+func newCmdMetadata(cmd *Cmd) *CmdMetadata {
+	metadata := &CmdMetadata{}
+	metadata.CmdId = cmd.Id
+	if cmd.Process == nil {
+		if cmd.Err != nil {
+			metadata.Status = "lookup error"
+		} else {
+			metadata.Status = "unstarted"
+		}
+		return metadata
+	}
+
+	metadata.Pid = cmd.Process.Pid
+	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+		metadata.Status = "exited"
+		metadata.ExitCode = cmd.ProcessState.ExitCode()
+	} else {
+		// started but not finished
+		metadata.Pid = cmd.Process.Pid
+		metadata.Status = "running"
+	}
+
+	return metadata
+}
+
 func (app *App) runCmdSocket(cmd *Cmd, conn *websocket.Conn) error {
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -147,31 +179,7 @@ func (app *App) cmdMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cmd := app.Cmds[cmdId]
-	var metadata struct {
-		Pid	int `json:"pid,omitempty"`
-		CmdId int64 `json:"cmdId"`
-		Status string `json:"status,omitempty"`
-		ExitCode int  `json:"exitCode,omitempty"`
-	}
-
-	metadata.CmdId = cmdId
-	if cmd.Process == nil {
-		metadata.Status = "unstarted"
-	} else {
-		metadata.Pid = cmd.Process.Pid
-
-		if cmd.Process == nil {
-		    metadata.Status = "unstarted"
-		} else if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
-		    metadata.Status = "exited"
-		    metadata.ExitCode = cmd.ProcessState.ExitCode()
-		} else {
-		    // started but not finished
-		    metadata.Pid = cmd.Process.Pid
-		    metadata.Status = "running"
-		}
-
-	}
+	metadata := newCmdMetadata(cmd)
 
 	writeJson(w, http.StatusOK, Envelope{"metadata": metadata}, nil)
 }
