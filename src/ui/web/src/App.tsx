@@ -19,28 +19,65 @@ interface ProcessMetadata {
 }
 
 const Output: Component<{
+  command: string
   metadata?: ProcessMetadata
   setRef?: (el: HTMLDivElement) => void,
   hidden: bool
 }> = (props) => {
 
+  const formatDuration = (start: Date, end?: Date): string => {
+    const endTime = end || new Date();
+    const ms = endTime.getTime() - start.getTime();
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+    const mins = Math.floor(ms / 60000);
+    const secs = Math.floor((ms % 60000) / 1000);
+    return `${mins}m ${secs}s`;
+  };
+
+  const getStatusIcon = (status: string, exitCode?: number): string => {
+    if (status === 'running') return '▶';
+    if (status === 'exited' && exitCode === 0) return '✓';
+    if (status === 'exited' && exitCode !== 0) return '✗';
+    return '○';
+  };
+
   return (
     <div
       class="output-container"
       classList={{
-        hidden: props.hidden
+        hidden: props.hidden,
+        'status-running': props.metadata?.status === 'running',
+        'status-success': props.metadata?.status === 'exited' && props.metadata?.exitCode === 0,
+        'status-error': props.metadata?.status === 'exited' && props.metadata?.exitCode !== 0,
       }}
     >
       <div class="output-header">
-        <div class="output-header">
-          <span>Status: {props.metadata ? props.metadata.status : "pending"}</span>
-          {props.metadata?.pid != null && <span> | PID: {props.metadata.pid}</span>}
-          {props.metadata?.exitCode != null && <span> | Exit: {props.metadata.exitCode}</span>}
+        <div class="output-header-left">
+          <span class="status-icon">
+            {props.metadata ? getStatusIcon(props.metadata.status, props.metadata.exitCode) : '○'}
+          </span>
+          <span class="command">{props.command}</span>
+          <span class="status-text">{props.metadata?.status || 'pending'}</span>
+          {props.metadata?.exitCode != null && (
+            <span class="exit-code">• {props.metadata.exitCode}</span>
+          )}
+        </div>
+        <div class="output-header-right">
+          {props.metadata?.startedAt && (
+            <span class="duration">
+              {formatDuration(props.metadata.startedAt, props.metadata.exitedAt)}
+            </span>
+          )}
+          {props.metadata?.pid != null && (
+            <span class="pid">PID: {props.metadata.pid}</span>
+          )}
         </div>
       </div>
       <div class="output" ref={el => props.setRef?.(el)} />
     </div>
   );
+
 }
 
 const Prompt: Component<{
@@ -49,6 +86,7 @@ const Prompt: Component<{
 }> = (props) => {
   const [showOutput, setShowOutput] = createSignal<boolean>(false)
   const [metadata, setMetadata] = createSignal<ProcessMetadata | null>(null)
+  const [command, setCommand] = createSignal<string>("") 
 
   let inputRef: HTMLInputElement | undefined;
   let outputRef: HTMLDivElement | undefined;
@@ -114,7 +152,8 @@ const Prompt: Component<{
     }
     const cmd = inputRef.value;
     inputRef.disabled = true;
-    const argv = parseInput(cmd)
+    setCommand(cmd);
+    const argv = parseInput(cmd);
 
     try {
       const res = await fetch(`${API_URL}/run`, {
@@ -143,6 +182,7 @@ const Prompt: Component<{
       </div>
       <Output
         hidden={!showOutput()}
+        command={command()}
         metadata={metadata()}
         setRef={el => (outputRef = el)}
       />

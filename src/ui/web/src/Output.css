@@ -1,93 +1,85 @@
 .output-container {
   width: 100%;
   margin-top: 8px;
-  background-color: #282c34;
+  background-color: #1e1e1e;
+  border: 1px solid #3e3e3e;
+  border-radius: 6px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.output-container.status-running {
+  border-color: #4a9eff;
+}
+
+.output-container.status-success {
+  border-color: #4caf50;
+}
+
+.output-container.status-error {
+  border-color: #f44336;
+}
+
+.output-header {
+  background: #252525;
+  padding: 8px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #3e3e3e;
+  font-size: 13px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+}
+
+.output-header-left,
+.output-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-icon {
+  font-size: 14px;
+}
+
+.command {
+  color: #d4d4d4;
+  font-weight: 500;
+}
+
+.status-text {
+  color: #858585;
+  font-size: 12px;
+}
+
+.exit-code {
+  color: #858585;
+  font-size: 12px;
+}
+
+.output-container.status-error .exit-code {
+  color: #f44336;
+  font-weight: 500;
+}
+
+.duration,
+.pid {
+  color: #858585;
+  font-size: 12px;
 }
 
 .output {
   white-space: pre-wrap;
-  padding: 0.5rem;
-}
-
-.output-header {
-    background: #2a2a2a;
+  padding: 12px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 13px;
+  color: #d4d4d4;
+  overflow-y: auto;
+  max-height: 400px;
 }
 
 .hidden {
   display: none;
 }
-
-/* .output-header { */
-/*   display: flex; */
-/*   justify-content: space-between; */
-/*   align-items: center; */
-/*   padding: 8px 12px; */
-/*   background: #2a2a2a; */
-/*   border-radius: 4px 4px 0 0; */
-/*   font-size: 12px; */
-/* } */
-/**/
-/* .output-metadata { */
-/*   display: flex; */
-/*   gap: 12px; */
-/*   align-items: center; */
-/* } */
-/**/
-/* .status-badge { */
-/*   padding: 2px 8px; */
-/*   border-radius: 3px; */
-/*   font-weight: 600; */
-/*   text-transform: uppercase; */
-/*   font-size: 10px; */
-/* } */
-/**/
-/* .status-running { background: #3b82f6; color: white; } */
-/* .status-completed { background: #10b981; color: white; } */
-/* .status-failed { background: #ef4444; color: white; } */
-/* .status-killed { background: #f59e0b; color: white; } */
-/**/
-/* .exit-code, .duration, .duration-live { */
-/*   color: #9ca3af; */
-/* } */
-/**/
-/* .output-controls { */
-/*   display: flex; */
-/*   gap: 8px; */
-/* } */
-/**/
-/* .control-btn { */
-/*   padding: 4px 12px; */
-/*   border: none; */
-/*   border-radius: 4px; */
-/*   cursor: pointer; */
-/*   font-size: 11px; */
-/*   transition: all 0.2s; */
-/* } */
-/**/
-/* .kill-btn { */
-/*   background: #ef4444; */
-/*   color: white; */
-/* } */
-/**/
-/* .kill-btn:hover { */
-/*   background: #dc2626; */
-/* } */
-/**/
-/* .rerun-btn { */
-/*   background: #3b82f6; */
-/*   color: white; */
-/* } */
-/**/
-/* .rerun-btn:hover { */
-/*   background: #2563eb; */
-/* } */
-/**/
-/* .prompt-output pre { */
-/*   margin: 0; */
-/*   padding: 12px; */
-/*   background: #1a1a1a; */
-/*   border-radius: 0 0 4px 4px; */
-/*   overflow-x: auto; */
-/* } */
