@@ -3,14 +3,17 @@ import './Prompt.css'
 import type { Component } from 'solid-js';
 import { onMount, createSignal } from "solid-js";
 import Comp from './Comp';
+import { For } from "solid-js"
 
 const API_URL = import.meta.env.VITE_API_URL;
 const WEBSOCKET_URL = API_URL.replace(/^http/, 'ws')
 
-const Prompt: Component<{ focus?: boolean }> = (props) => {
+const Prompt: Component<{
+  focus?: boolean,
+  afterStartingSession?: () => void
+}> = (props) => {
   let inputRef: HTMLInputElement | undefined;
   let outputRef: HTMLDivElement | undefined;
-  const [output, setOutput] = createSignal("");
 
   onMount(() => {
     if (props.focus && inputRef) {
@@ -66,12 +69,13 @@ const Prompt: Component<{ focus?: boolean }> = (props) => {
       const data = await res.json()
       const cmdId = data.id
       startSession(cmdId)
+      if (props.afterStartingSession) {
+        props.afterStartingSession()
+      }
     } catch (err) {
       appendOutput(`Error: ${err}`);
     } finally {
-      inputRef.disabled = false;
-      inputRef.value = "";
-      inputRef.focus();
+      inputRef.disabled = true;
     }
   }
 
@@ -81,16 +85,31 @@ const Prompt: Component<{ focus?: boolean }> = (props) => {
         <label>$</label>
         <input type="text" ref={inputRef} onKeyDown={handleKeyDown}/>
       </div>
-      <div class="prompt-output" ref={outputRef}></div>
+      <div class="prompt-output" ref={outputRef}>
+      </div>
     </div>
   );
 };
 
 const App: Component = () => {
+  const [prompts, setPrompts] = createSignal<{id: number}[]>([{id: 0}]);
+
+  const addPrompt = () => {
+    const id = prompts().length;
+    setPrompts([...prompts(), {id}]);
+  }
+
   return (
-    <>
-      <Prompt focus/>
-    </>
+    <div class="repl-container">
+      <For each={prompts()}>
+        {(p, i) => (
+          <Prompt
+            focus={i() === prompts().length - 1}
+            afterStartingSession={addPrompt}
+          />
+        )}
+      </For>
+    </div>
   );
 };
 
