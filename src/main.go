@@ -13,7 +13,122 @@ import (
 	"encoding/json"
 	"errors"
 	"os/exec"
+	"github.com/gorilla/websocket"
 )
+
+// TODO: temp
+var gCmd *exec.Cmd
+
+func runCmdSocket(cmd *exec.Cmd, conn *websocket.Conn) error {
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	// TODO: temporary
+	cmd.Stderr = cmd.Stdout
+
+	go func() {
+		defer stdin.Close()
+
+		for {
+			_, r, err := conn.NextReader()
+			if err != nil {
+				return
+			}
+			if _, err := io.Copy(stdin, r); err != nil {
+				return
+			}
+		}
+	}()
+
+	go func() {
+	    buf := make([]byte, 4096)
+	    for {
+	        n, err := stdout.Read(buf)
+	        if n > 0 {
+	            conn.WriteMessage(websocket.BinaryMessage, buf[:n])
+	        }
+	        if err != nil {
+	            return
+	        }
+	    }
+	}()
+
+	cmd.Run()
+	return nil
+}
+
+func cmdWebsocket(w http.ResponseWriter, r *http.Request) {
+	var upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		// TODO: temp
+    CheckOrigin: func(r *http.Request) bool {
+        return true
+    },
+	}
+
+	conn, err := upgrader.Upgrade(w, r, nil)
+	// TODO: real error
+	if err != nil {
+		panic(err)
+	}
+	runCmdSocket(gCmd, conn)
+}
+
+func runCmd(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Argv []string `json:"argv"`
+	}
+
+	err := readJson(w, r, &payload)
+	// TODO: show error
+	if err != nil {
+		panic(err)
+	}
+
+	gCmd = exec.Command(payload.Argv[0], payload.Argv[1:]...)
+}
+
+//go:embed ui
+var uiFiles embed.FS
+
+func noCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func logHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	    next.ServeHTTP(w, r)
+	    log.Printf("%s %s\n", r.Method, r.URL.Path)
+	})
+}
+
+func enableCors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// TODO: make this stricter
+		// allow any origin
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		// handle preflight
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, PUT, PATCH, DELETE")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 func readJson(w http.ResponseWriter, r *http.Request, dst any) error {
 	maxBytes := 1_048_576
@@ -75,57 +190,6 @@ func readJson(w http.ResponseWriter, r *http.Request, dst any) error {
 	return nil
 }
 
-func runCmd(w http.ResponseWriter, r *http.Request) {
-	var payload struct {
-		Argv []string `json:"argv"`
-	}
-
-	err := readJson(w, r, &payload)
-	// TODO: show response
-	if err != nil {
-		panic(err)
-	}
-	cmd := exec.Command(payload.Argv[0], payload.Argv[1:]...)
-	cmd.Stdout = w
-	cmd.Stderr = w
-	w.Header().Set("Content-Type", "text/plain")
-	cmd.Run()
-}
-
-//go:embed ui
-var uiFiles embed.FS
-
-func noCache(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "no-cache")
-		next.ServeHTTP(w, r)
-	})
-}
-
-func logHandler(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	    next.ServeHTTP(w, r)
-	    log.Printf("%s %s\n", r.Method, r.URL.Path)
-	})
-}
-
-func enableCors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: make this stricter
-		// allow any origin
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-
-		// handle preflight
-		if r.Method == http.MethodOptions {
-			w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, PUT, PATCH, DELETE")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 func makeHandler() http.Handler {
 	mux := http.NewServeMux()
 
@@ -142,6 +206,7 @@ func makeHandler() http.Handler {
         http.ServeFile(w, r, "src/ui/index.html")
 	})
 	mux.HandleFunc("POST /run", runCmd)
+	mux.HandleFunc("GET /ws", cmdWebsocket)
 
 	var handler http.Handler
 	handler = mux

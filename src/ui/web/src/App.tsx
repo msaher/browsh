@@ -8,6 +8,7 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 const Prompt: Component<{ focus?: boolean }> = (props) => {
   let inputRef: HTMLInputElement | undefined;
+  let outputRef: HTMLDivElement | undefined;
   const [output, setOutput] = createSignal("");
 
   onMount(() => {
@@ -15,6 +16,33 @@ const Prompt: Component<{ focus?: boolean }> = (props) => {
       inputRef.focus();
     }
   });
+
+  const appendOutput = (text: string) => {
+    const node = outputRef;
+    node.textContent += text;
+    node.scrollTop = node.scrollHeight;
+  };
+
+  let ws: WebSocket | null = null;
+  const startSession = () => {
+    ws = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/ws`);
+    ws.onopen = () => {
+      console.log("WebSocket connected");
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket closed");
+    };
+
+    ws.onerror = (err) => {
+      console.error("WebSocket error:", err);
+    };
+
+    ws.onmessage = async (event: MessageEvent) => {
+      const text = await event.data.text()
+      appendOutput(text)
+    };
+  }
 
   const parseInput = (cmd: string) => {
     return cmd.match(/(?:[^\s"]+|"[^"]*")+/g)?.map(a => a.replace(/"/g, "")) || [];
@@ -34,10 +62,9 @@ const Prompt: Component<{ focus?: boolean }> = (props) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ argv }),
       });
-      const text = await res.text();
-      setOutput(text);
+      startSession()
     } catch (err) {
-      setOutput(`Error: ${err}`);
+      appendOutput(`Error: ${err}`);
     } finally {
       inputRef.disabled = false;
       inputRef.value = "";
@@ -51,7 +78,7 @@ const Prompt: Component<{ focus?: boolean }> = (props) => {
         <label>$</label>
         <input type="text" ref={inputRef} onKeyDown={handleKeyDown}/>
       </div>
-      <div class="prompt-output">{output()}</div>
+      <div class="prompt-output" ref={outputRef}></div>
     </div>
   );
 };
