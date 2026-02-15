@@ -47,7 +47,7 @@ type CmdMetadata struct {
 	Pid	int `json:"pid,omitempty"`
 	Status string `json:"status,omitempty"`
 	StartedAt time.Time `json:"startedAt,omitempty"`
-	ExitCode int  `json:"exitCode,omitempty"`
+	ExitCode int  `json:"exitCode"`
 	ExitedAt time.Time `json:"exitedAt,omitempty"`
 }
 
