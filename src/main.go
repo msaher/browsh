@@ -136,7 +136,44 @@ func (app *App) registerCmd(w http.ResponseWriter, r *http.Request) {
 	c := exec.Command(payload.Argv[0], payload.Argv[1:]...)
 	cmdId := addCmd(app, c)
 
-	writeJson(w, http.StatusOK, Envelope{"id": cmd.Id}, nil)
+	writeJson(w, http.StatusOK, Envelope{"id": cmdId}, nil)
+}
+
+func (app *App) cmdMetadata(w http.ResponseWriter, r *http.Request) {
+	cmdId := int64PathValue(r, "id")
+	if cmdId == 0 || app.Cmds[cmdId] == nil {
+		app.notFound(w, r, "not found")
+		return
+	}
+
+	cmd := app.Cmds[cmdId]
+	var metadata struct {
+		Pid	int `json:"pid,omitempty"`
+		CmdId int64 `json:"cmdId"`
+		Status string `json:"status,omitempty"`
+		ExitCode int  `json:"exitCode,omitempty"`
+	}
+
+	metadata.CmdId = cmdId
+	if cmd.Process == nil {
+		metadata.Status = "unstarted"
+	} else {
+		metadata.Pid = cmd.Process.Pid
+
+		if cmd.Process == nil {
+		    metadata.Status = "unstarted"
+		} else if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+		    metadata.Status = "exited"
+		    metadata.ExitCode = cmd.ProcessState.ExitCode()
+		} else {
+		    // started but not finished
+		    metadata.Pid = cmd.Process.Pid
+		    metadata.Status = "running"
+		}
+
+	}
+
+	writeJson(w, http.StatusOK, Envelope{"metadata": metadata}, nil)
 }
 
 //go:embed ui
@@ -177,6 +214,21 @@ func int64PathValue(r *http.Request, name string) int64 {
 	valueStr := r.PathValue(name)
 	valueInt, _ := strconv.Atoi(valueStr)
 	return int64(valueInt)
+}
+
+func (app *App) errorResponse(w http.ResponseWriter, r *http.Request, status int, mesage any) {
+	env := Envelope{"error": mesage}
+
+	err := writeJson(w, status, env, nil)
+	if err != nil {
+		// TODO: make a real error logger
+		log.Println(r, err)
+		w.WriteHeader(500)
+	}
+}
+
+func (app *App) notFound(w http.ResponseWriter, r *http.Request, message any) {
+	app.errorResponse(w, r, http.StatusNotFound, message)
 }
 
 func readJson(w http.ResponseWriter, r *http.Request, dst any) error {
@@ -260,7 +312,6 @@ func writeJson(w http.ResponseWriter, status int, data Envelope, headers http.He
 	return nil
 }
 
-
 func makeHandler(app *App) http.Handler {
 	mux := http.NewServeMux()
 
@@ -278,6 +329,7 @@ func makeHandler(app *App) http.Handler {
 	})
 	mux.HandleFunc("POST /run", app.registerCmd)
 	mux.HandleFunc("GET /ws/{id}", app.cmdWebsocket)
+	mux.HandleFunc("GET /cmd/{id}/metadata", app.cmdMetadata)
 
 	var handler http.Handler
 	handler = mux
