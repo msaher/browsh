@@ -11,3 +11,4 @@ func tokenTypes(tokens []Token) []TokenType {
 		types[i] = t.Type
 	}
 	return types
+}
