@@ -74,6 +74,13 @@ func (app *App) runCmdSocket(cmd *Cmd, conn *websocket.Conn) error {
 		return err
 	}
 
+	go func() {
+		// run .wait() to populate .ProcessState
+		_ := cmd.Wait()
+		conn.Close()
+	}()
+
+
 	return nil
 }
 
