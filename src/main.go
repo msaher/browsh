@@ -17,6 +17,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// TODO: multi-user support. Use locks?
+
 type Cmd struct {
 	Id int64
 	*exec.Cmd
@@ -28,6 +30,12 @@ type App struct {
 }
 
 type Envelope map[string]any
+
+func addCmd(app *App, cmd *exec.Cmd) int64 {
+	app.LastId++
+	app.Cmds[app.LastId] = &Cmd{app.LastId, cmd}
+	return app.LastId
+}
 
 func (app *App) runCmdSocket(cmd *Cmd, conn *websocket.Conn) error {
 	stdin, err := cmd.StdinPipe()
@@ -126,8 +134,7 @@ func (app *App) registerCmd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	c := exec.Command(payload.Argv[0], payload.Argv[1:]...)
-	cmd := &Cmd{Id: app.LastId+1, Cmd: c}
-	app.Cmds[cmd.Id] = cmd
+	cmdId := addCmd(app, c)
 
 	writeJson(w, http.StatusOK, Envelope{"id": cmd.Id}, nil)
 }
