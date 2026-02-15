@@ -31,6 +31,9 @@ const Prompt: Component<{
   const startSession = (cmdId: number) => {
     ws = new WebSocket(`${WEBSOCKET_URL}/ws/${cmdId}`);
     ws.onopen = () => {
+      if (outputRef) {
+        outputRef.classList.remove("hidden")
+      }
       console.log("WebSocket connected");
     };
 
@@ -85,8 +88,7 @@ const Prompt: Component<{
         <label>$</label>
         <input type="text" ref={inputRef} onKeyDown={handleKeyDown}/>
       </div>
-      <div class="prompt-output" ref={outputRef}>
-      </div>
+      <div class="prompt-output hidden" ref={outputRef}></div>
     </div>
   );
 };
