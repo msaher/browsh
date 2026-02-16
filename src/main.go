@@ -5,14 +5,15 @@ import (
 	"net/http"
 	"flag"
 	"log"
-	"os"
 	"embed"
 	"io"
 	"strings"
 	"io/fs"
 	"encoding/json"
 	"errors"
+	"os"
 	"os/exec"
+	"syscall"
 	"strconv"
 	"time"
 
@@ -83,19 +84,21 @@ func newCmdMetadata(cmd *Cmd) *CmdMetadata {
 	m.Status = "running"
 	return m
 }
+
+func findAliveProcess(pid int) (*os.Process, error) {
+	// always succeeds in unix
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return nil, err
 	}
 
-	metadata.Pid = cmd.Process.Pid
-	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
-		metadata.Status = "exited"
-		metadata.ExitCode = cmd.ProcessState.ExitCode()
-	} else {
-		// started but not finished
-		metadata.Pid = cmd.Process.Pid
-		metadata.Status = "running"
+	// TODO: do this on unix only
+	err = proc.Signal(syscall.Signal(0))
+	if err != nil {
+		return nil, err
 	}
 
-	return metadata
+	return proc, nil // alive
 }
 
 func (app *App) runCmdSocket(cmd *Cmd, conn *websocket.Conn) error {
@@ -215,6 +218,53 @@ func (app *App) cmdMetadata(w http.ResponseWriter, r *http.Request) {
 	writeJson(w, http.StatusOK, Envelope{"metadata": metadata}, nil)
 }
 
+func (app *App) cmdSignal(w http.ResponseWriter, r *http.Request) {
+	pid := intPathValue(r, "pid")
+	if pid <= 0 {
+		msg := "Invalid pid"
+		app.errorResponse(w, r, http.StatusBadRequest, msg)
+		return
+	}
+	var payload struct {
+		Signal string `json:"signal"`
+	}
+
+	err := readJson(w, r, &payload)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	sigMap := map[string]syscall.Signal{
+		"SIGTERM": syscall.SIGTERM,
+		"SIGKILL": syscall.SIGKILL,
+		"SIGSTOP": syscall.SIGSTOP,
+		"SIGCONT": syscall.SIGCONT,
+		"SIGINT":  syscall.SIGINT,
+	}
+
+	signal, ok := sigMap[payload.Signal]
+	if !ok {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	process, err := findAliveProcess(pid)
+	if err != nil {
+		msg := "can't find alive process"
+		app.notFound(w, r, msg)
+		return
+	}
+
+	if err := process.Signal(signal); err != nil {
+			app.errorResponse(w, r, http.StatusInternalServerError, err.Error())
+	    return
+	}
+
+
+	writeJson(w, http.StatusOK, Envelope{"msg": "all good"}, nil)
+}
+
 //go:embed ui
 var uiFiles embed.FS
 
@@ -253,6 +303,16 @@ func int64PathValue(r *http.Request, name string) int64 {
 	valueStr := r.PathValue(name)
 	valueInt, _ := strconv.Atoi(valueStr)
 	return int64(valueInt)
+}
+
+func intPathValue(r *http.Request, name string) int {
+	valueStr := r.PathValue(name)
+	valueInt, _ := strconv.Atoi(valueStr)
+	return valueInt
+}
+
+func (app *App) badRequestResponse(w http.ResponseWriter, r *http.Request, err error) {
+	app.errorResponse(w, r, http.StatusBadRequest, err.Error())
 }
 
 func (app *App) errorResponse(w http.ResponseWriter, r *http.Request, status int, mesage any) {
@@ -370,6 +430,7 @@ func makeHandler(app *App) http.Handler {
 	mux.HandleFunc("POST /run", app.registerCmd)
 	mux.HandleFunc("GET /ws/{id}", app.cmdWebsocket)
 	mux.HandleFunc("GET /cmd/{id}/metadata", app.cmdMetadata)
+	mux.HandleFunc("POST /signal/{pid}", app.cmdSignal)
 	mux.HandleFunc("/", app.unkownPath)
 
 	var handler http.Handler
