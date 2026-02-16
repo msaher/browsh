@@ -29,7 +29,7 @@ const Output: Component<{
   const formatDuration = (start: Date, end?: Date): string => {
     const endTime = end || new Date();
     const ms = endTime.getTime() - start.getTime();
-    if (ms < 1000) return `${ms}ms`;
+    // if (ms < 1000) return `${ms}ms`;
     if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
     const mins = Math.floor(ms / 60000);
     const secs = Math.floor((ms % 60000) / 1000);
