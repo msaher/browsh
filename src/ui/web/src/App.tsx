@@ -68,10 +68,11 @@ interface ProcessMetadata {
 // TODO: extract the nested functions into top level ones
 
 const Output: Component<{
-  command: string
-  metadata?: ProcessMetadata
+  command: string,
+  metadata?: ProcessMetadata,
   setRef?: (el: HTMLDivElement) => void,
-  hidden: boolean
+  hidden: boolean,
+  onSendStdin?: (text: string) => void,
 }> = (props) => {
   let outputRef: HTMLDivElement | undefined;
 
@@ -226,6 +227,28 @@ const Output: Component<{
         outputRef = el
         props.setRef?.(el)
       }}/>
+
+      {props.metadata?.status === 'running' && (
+        <div class="stdin-container">
+        <span class="stdin-prompt">›</span>
+        <textarea
+        class="stdin-input"
+        placeholder="Type input and press Enter..."
+        rows={1}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            const text = e.currentTarget.value;
+            if (text.trim()) {
+              props.onSendStdin?.(text + '\n');
+              e.currentTarget.value = '';
+            }
+          }
+        }}
+        />
+        </div>
+      )}
+
     </div>
   );
 
@@ -267,6 +290,12 @@ const Prompt: Component<{
     if (!node) return
     node.textContent += text;
     node.scrollTop = node.scrollHeight;
+  };
+
+  const sendStdin = (text: string) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(text);
+    }
   };
 
   let ws: WebSocket | null = null;
@@ -337,6 +366,7 @@ const Prompt: Component<{
         command={command()}
         metadata={metadata()}
         setRef={el => (outputRef = el)}
+        onSendStdin={sendStdin}
       />
     </div>
   );

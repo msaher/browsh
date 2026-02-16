@@ -116,3 +116,36 @@
   border-color: #f44336;
   color: #f44336;
 }
+
+.stdin-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #1a1a1a;
+  border-top: 1px solid #3e3e3e;
+}
+
+.stdin-prompt {
+  color: #4a9eff;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 13px;
+  padding-top: 2px;
+  user-select: none;
+}
+
+.stdin-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #d4d4d4;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 13px;
+  resize: none;
+  overflow: hidden;
+}
+
+.stdin-input::placeholder {
+  color: #5a5a5a;
+}
