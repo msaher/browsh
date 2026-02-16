@@ -2,7 +2,7 @@ import './App.css'
 import './Prompt.css'
 import './Output.css'
 import type { Component } from 'solid-js';
-import { onMount, createSignal } from "solid-js";
+import { onMount, onCleanup, createSignal, createEffect} from "solid-js";
 import Comp from './Comp';
 import { For } from "solid-js"
 
@@ -36,6 +36,16 @@ const Output: Component<{
     return `${mins}m ${secs}s`;
   };
 
+  const getDuration = (): string => {
+    if (!props.metadata?.startedAt) return '';
+    if (props.metadata.status === 'exited' && props.metadata.exitedAt) {
+      // finished - show final duration
+      return formatDuration(props.metadata.startedAt, props.metadata.exitedAt);
+    } else {
+      // running - show live counter
+      return formatDuration(props.metadata.startedAt, new Date(props.metadata.startedAt.getTime() + timeElapsed()));
+    }
+  };
 
   const getStatusIcon = (status: string, exitCode?: number): string => {
     if (status === 'running') return '▶';
@@ -43,6 +53,30 @@ const Output: Component<{
     if (status === 'exited' && exitCode !== 0) return '✗';
     return '○';
   };
+
+  // start a timer
+  const [timeElapsed, setTimeElapsed] = createSignal<number>(0);
+  let intervalId: number | undefined;
+  createEffect(() => {
+    if (props.metadata?.status === 'running' && props.metadata.startedAt) {
+      // start the interval if not already running
+      if (!intervalId) {
+        intervalId = setInterval(() => {
+          setTimeElapsed(Date.now() - props.metadata!.startedAt.getTime());
+        }, 100);
+      }
+    } else if (props.metadata?.status === 'exited') {
+      // stop the interval when exited
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = undefined;
+      }
+    }
+  });
+
+  onCleanup(() => {
+    if (intervalId) clearInterval(intervalId);
+  });
 
   return (
     <div
@@ -81,10 +115,9 @@ const Output: Component<{
           </button>
 
           {props.metadata?.startedAt && (
-            <span class="duration">
-              {formatDuration(props.metadata.startedAt, props.metadata.exitedAt)}
-            </span>
+            <span class="duration">{getDuration()}</span>
           )}
+
           {props.metadata?.pid != null && (
             <span class="pid">PID: {props.metadata.pid}</span>
           )}
