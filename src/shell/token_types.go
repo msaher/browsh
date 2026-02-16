@@ -3,3 +3,4 @@ package shell
 
 type TokenType int
 
+const (
