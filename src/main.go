@@ -266,6 +266,10 @@ func (app *App) errorResponse(w http.ResponseWriter, r *http.Request, status int
 	}
 }
 
+func (app *App) unkownPath(w http.ResponseWriter, r *http.Request) {
+	app.notFound(w, r, "unknown path")
+}
+
 func (app *App) notFound(w http.ResponseWriter, r *http.Request, message any) {
 	app.errorResponse(w, r, http.StatusNotFound, message)
 }
@@ -363,12 +367,10 @@ func makeHandler(app *App) http.Handler {
 	//  TODO: enable cache in production
 	mux.Handle("/static/", noCache(fileServer))
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-        http.ServeFile(w, r, "src/ui/index.html")
-	})
 	mux.HandleFunc("POST /run", app.registerCmd)
 	mux.HandleFunc("GET /ws/{id}", app.cmdWebsocket)
 	mux.HandleFunc("GET /cmd/{id}/metadata", app.cmdMetadata)
+	mux.HandleFunc("/", app.unkownPath)
 
 	var handler http.Handler
 	handler = mux
