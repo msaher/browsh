@@ -73,6 +73,7 @@ const Output: Component<{
   setRef?: (el: HTMLDivElement) => void,
   hidden: boolean,
   onSendStdin?: (text: string) => void,
+  onSendEOF?: () => void,
 }> = (props) => {
   let outputRef: HTMLDivElement | undefined;
 
@@ -244,6 +245,12 @@ const Output: Component<{
               e.currentTarget.value = '';
             }
           }
+          if (e.key === 'd' && e.ctrlKey) {
+            e.preventDefault();
+            props.onSendEOF?.();
+            console.log("sent eof")
+            e.currentTarget.value = '';
+          }
         }}
         />
         </div>
@@ -295,6 +302,12 @@ const Prompt: Component<{
   const sendStdin = (text: string) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(text);
+    }
+  };
+
+  const sendEOF = () => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send('\x04'); // ascii EOT character
     }
   };
 
@@ -367,6 +380,7 @@ const Prompt: Component<{
         metadata={metadata()}
         setRef={el => (outputRef = el)}
         onSendStdin={sendStdin}
+        onSendEOF={sendEOF}
       />
     </div>
   );
