@@ -117,13 +117,24 @@ func (app *App) runCmdSocket(cmd *Cmd, conn *websocket.Conn) error {
 
 	go func() {
 		defer stdin.Close()
-
 		for {
 			_, r, err := conn.NextReader()
 			if err != nil {
 				return
 			}
-			if _, err := io.Copy(stdin, r); err != nil {
+
+			data, err := io.ReadAll(r)
+			if err != nil {
+				return
+			}
+
+			// check for eof marker (ctrl+d / \x04)
+			if len(data) == 1 && data[0] == 0x04 {
+				return
+			}
+
+			// otherwise write to stdin
+			if _, err := stdin.Write(data); err != nil {
 				return
 			}
 		}
