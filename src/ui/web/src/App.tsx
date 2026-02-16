@@ -71,7 +71,7 @@ const Output: Component<{
   command: string
   metadata?: ProcessMetadata
   setRef?: (el: HTMLDivElement) => void,
-  hidden: bool
+  hidden: boolean
 }> = (props) => {
   let outputRef: HTMLDivElement | undefined;
 
