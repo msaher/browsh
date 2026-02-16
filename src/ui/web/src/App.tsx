@@ -41,6 +41,19 @@ const CopyIcon = () => (
   </svg>
 );
 
+const PauseIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <rect x="6" y="4" width="4" height="16"/>
+    <rect x="14" y="4" width="4" height="16"/>
+  </svg>
+);
+
+const ResumeIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polygon points="5 3 19 12 5 21 5 3"/>
+  </svg>
+);
+
 interface ProcessMetadata {
   cmdId: number
   pid?: number
@@ -79,6 +92,7 @@ const Output: Component<{
     }
   };
 
+  const [isPaused, setIsPaused] = createSignal(false);
   const handleSignal = async (signal: Signal) => {
     if (!props.metadata?.pid) return;
     try {
@@ -87,11 +101,22 @@ const Output: Component<{
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ signal })
       });
+
+      if (signal === 'SIGSTOP') setIsPaused(true);
+      if (signal === 'SIGCONT') setIsPaused(false);
+
     } catch (err) {
       // TODO: handle error
       console.error('Failed to send signal:', err);
     }
   };
+
+  // reset pause state when process exits
+  createEffect(() => {
+    if (props.metadata?.status === 'exited') {
+      setIsPaused(false);
+    }
+  })
 
 
   const getStatusIcon = (status: string, exitCode?: number): string => {
@@ -109,7 +134,9 @@ const Output: Component<{
       // start the interval if not already running
       if (!intervalId) {
         intervalId = setInterval(() => {
-          setTimeElapsed(Date.now() - props.metadata!.startedAt.getTime());
+          if (!isPaused()) {
+            setTimeElapsed(Date.now() - props.metadata!.startedAt.getTime());
+          }
         }, 100);
       }
     } else if (props.metadata?.status === 'exited') {
@@ -149,6 +176,13 @@ const Output: Component<{
         <div class="output-header-right">
         {props.metadata?.status === 'running' && (
           <>
+          <button
+            class="signal-btn"
+            onClick={() => handleSignal(isPaused() ? SIGNALS.CONT : SIGNALS.STOP)}
+            title={isPaused() ? "Resume (SIGCONT)" : "Pause (SIGSTOP)"}
+          >
+            {isPaused() ? <ResumeIcon /> : <PauseIcon />}
+          </button>
           <button class="signal-btn" onClick={() => handleSignal(SIGNALS.INT)} title="Stop (SIGINT)">
             <StopIcon />
           </button>
