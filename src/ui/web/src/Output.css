@@ -22,6 +22,10 @@
   border-color: #f44336;
 }
 
+.output-container.status-paused {
+  border-color: #ffb020;
+}
+
 .output-header {
   background: #252525;
   padding: 8px 12px;

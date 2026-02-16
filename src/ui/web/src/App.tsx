@@ -123,7 +123,8 @@ const Output: Component<{
   })
 
 
-  const getStatusIcon = (status: string, exitCode?: number): string => {
+  const getStatusIcon = (status: string, exitCode?: number, paused: boolean): string => {
+    if (paused) return '⏸';
     if (status === 'running') return '▶';
     if (status === 'exited' && exitCode === 0) return '✓';
     if (status === 'exited' && exitCode !== 0) return '✗';
@@ -161,18 +162,23 @@ const Output: Component<{
       class="output-container"
       classList={{
         hidden: props.hidden,
-        'status-running': props.metadata?.status === 'running',
+        'status-running': props.metadata?.status === 'running' && !isPaused(),
         'status-success': props.metadata?.status === 'exited' && props.metadata?.exitCode === 0,
         'status-error': props.metadata?.status === 'exited' && props.metadata?.exitCode !== 0,
+        'status-paused': isPaused(),
       }}
     >
       <div class="output-header">
         <div class="output-header-left">
           <span class="status-icon">
-            {props.metadata ? getStatusIcon(props.metadata.status, props.metadata.exitCode) : '○'}
+            {props.metadata ? getStatusIcon(props.metadata.status, props.metadata.exitCode, isPaused()) : '○'}
           </span>
           <span class="command">{props.command}</span>
-          <span class="status-text">{props.metadata?.status || 'pending'}</span>
+          <span class="status-text">
+            {isPaused()
+              ? "paused"
+              : props.metadata?.status ?? "pending"}
+          </span>
           {props.metadata?.exitCode != null && (
             <span class="exit-code">• {props.metadata.exitCode}</span>
           )}
