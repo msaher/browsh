@@ -9,6 +9,38 @@ import { For } from "solid-js"
 const API_URL = import.meta.env.VITE_API_URL;
 const WEBSOCKET_URL = API_URL.replace(/^http/, 'ws')
 
+export const SIGNALS = {
+  TERM: "SIGTERM",
+  KILL: "SIGKILL",
+  STOP: "SIGSTOP",
+  CONT: "SIGCONT",
+  INT:  "SIGINT",
+} as const;
+
+export type Signal = typeof SIGNALS[keyof typeof SIGNALS];
+
+
+const StopIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <rect x="6" y="6" width="12" height="12" rx="2"/>
+  </svg>
+);
+
+const ForceKillIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10"/>
+    <line x1="15" y1="9" x2="9" y2="15"/>
+    <line x1="9" y1="9" x2="15" y2="15"/>
+  </svg>
+);
+
+const CopyIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+  </svg>
+);
+
 interface ProcessMetadata {
   cmdId: number
   pid?: number
@@ -46,6 +78,21 @@ const Output: Component<{
       return formatDuration(props.metadata.startedAt, new Date(props.metadata.startedAt.getTime() + timeElapsed()));
     }
   };
+
+  const handleSignal = async (signal: Signal) => {
+    if (!props.metadata?.pid) return;
+    try {
+      await fetch(`${API_URL}/signal/${props.metadata.pid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signal })
+      });
+    } catch (err) {
+      // TODO: handle error
+      console.error('Failed to send signal:', err);
+    }
+  };
+
 
   const getStatusIcon = (status: string, exitCode?: number): string => {
     if (status === 'running') return '▶';
@@ -100,6 +147,17 @@ const Output: Component<{
           )}
         </div>
         <div class="output-header-right">
+        {props.metadata?.status === 'running' && (
+          <>
+          <button class="signal-btn" onClick={() => handleSignal(SIGNALS.INT)} title="Stop (SIGINT)">
+            <StopIcon />
+          </button>
+          <button class="signal-btn signal-btn-danger" onClick={() => handleSignal(SIGNALS.KILL)} title="Force kill (SIGKILL)">
+            <ForceKillIcon />
+            </button>
+          </>
+        )}
+
           <button
             class="copy-btn"
             onClick={() => {
@@ -108,10 +166,7 @@ const Output: Component<{
             }}
             title="Copy output"
             >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
+            <CopyIcon />
           </button>
 
           {props.metadata?.startedAt && (
@@ -138,7 +193,7 @@ const Prompt: Component<{
 }> = (props) => {
   const [showOutput, setShowOutput] = createSignal<boolean>(false)
   const [metadata, setMetadata] = createSignal<ProcessMetadata | null>(null)
-  const [command, setCommand] = createSignal<string>("") 
+  const [command, setCommand] = createSignal<string>("")
 
   let inputRef: HTMLInputElement | undefined;
   let outputRef: HTMLDivElement | undefined;
@@ -182,6 +237,7 @@ const Prompt: Component<{
     ws.onclose = async () => {
       await updateMetadata()
       console.log("WebSocket closed");
+      console.log(metadata())
     };
 
     ws.onerror = (err) => {

@@ -84,23 +84,31 @@
   display: none;
 }
 
-.copy-btn {
+.copy-btn,
+.signal-btn {
   background: transparent;
-  border: none;
-  color: #858585;
+  border: 1px solid #3e3e3e;
+  border-radius: 4px;
+  padding: 4px 6px;
   cursor: pointer;
-  padding: 4px;
+  color: #858585;
   display: flex;
   align-items: center;
-  border-radius: 3px;
   transition: all 0.2s;
 }
 
-.copy-btn:hover {
-  color: #d4d4d4;
+.copy-btn:hover,
+.signal-btn:hover {
   background: #3e3e3e;
+  color: #d4d4d4;
 }
 
-.copy-btn:active {
+.copy-btn:active,
+.signal-btn:active {
   transform: scale(0.95);
+}
+
+.signal-btn-danger:hover {
+  border-color: #f44336;
+  color: #f44336;
 }
