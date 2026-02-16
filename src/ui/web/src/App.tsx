@@ -253,6 +253,13 @@ const Output: Component<{
           }
         }}
         />
+        <button
+        class="eof-btn"
+        onClick={() => props.onSendEOF?.()}
+        title="Send EOF (Ctrl+D)"
+        >
+    EOF
+  </button>
         </div>
       )}
 
