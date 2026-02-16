@@ -63,6 +63,10 @@ interface ProcessMetadata {
   exitedAt?: Date
 }
 
+// TODO: rename. I don't like the name output
+// TODO: put in its own file. Its getting too large
+// TODO: extract the nested functions into top level ones
+
 const Output: Component<{
   command: string
   metadata?: ProcessMetadata
@@ -102,8 +106,8 @@ const Output: Component<{
         body: JSON.stringify({ signal })
       });
 
-      if (signal === 'SIGSTOP') setIsPaused(true);
-      if (signal === 'SIGCONT') setIsPaused(false);
+      if (signal === SIGNALS.STOP) setIsPaused(true);
+      if (signal === SIGNALS.CONT) setIsPaused(false);
 
     } catch (err) {
       // TODO: handle error
