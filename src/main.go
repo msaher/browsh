@@ -52,19 +52,37 @@ type CmdMetadata struct {
 }
 
 func newCmdMetadata(cmd *Cmd) *CmdMetadata {
-	metadata := &CmdMetadata{
-		CmdId: cmd.Id,
+	m := &CmdMetadata{
+		CmdId:     cmd.Id,
 		StartedAt: cmd.StartedAt,
-		ExitedAt: cmd.ExitedAt,
+		ExitedAt:  cmd.ExitedAt,
 	}
+
+	// binary lookup failed (exec.Command stage)
+	if cmd.Err != nil {
+		m.Status = "error"
+		return m
+	}
+
+	// never started or Start() failed
 	if cmd.Process == nil {
-		if cmd.Err != nil {
-			// TODO: be more elaborate
-			metadata.Status = "lookup error"
-		} else {
-			metadata.Status = "waiting"
-		}
-		return metadata
+		m.Status = "waiting"
+		return m
+	}
+
+	m.Pid = cmd.Process.Pid
+
+	// finished
+	if cmd.ProcessState != nil {
+		m.Status = "exited"
+		m.ExitCode = cmd.ProcessState.ExitCode()
+		return m
+	}
+
+	// still running
+	m.Status = "running"
+	return m
+}
 	}
 
 	metadata.Pid = cmd.Process.Pid
