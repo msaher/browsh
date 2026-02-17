@@ -66,6 +66,7 @@ const ResumeIcon = () => (
   </svg>
 );
 
+// TODO: rename. I don't like the name output
 export const Output: Component<{
   command: string,
   metadata?: ProcessMetadata,
