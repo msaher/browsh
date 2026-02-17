@@ -2,15 +2,6 @@ import './Output.css'
 import type { Component } from 'solid-js';
 import { onCleanup, createSignal, createEffect} from "solid-js";
 
-interface ProcessMetadata {
-  cmdId: number
-  pid?: number
-  status: string
-  exitCode?: number
-  startedAt: Date
-  exitedAt?: Date
-}
-
 const SIGNALS = {
   TERM: "SIGTERM",
   KILL: "SIGKILL",
