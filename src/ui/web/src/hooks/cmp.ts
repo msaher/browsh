@@ -1,3 +1,4 @@
 import * as config from "../config"
 import { createSignal, type Signal } from "solid-js";
 
+export function addCompletion(input: HTMLInputElement, item: string) {
