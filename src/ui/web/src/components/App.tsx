@@ -1,7 +1,7 @@
 import './App.css'
 import type { Component } from 'solid-js';
 import { Prompt } from './Prompt'
-import { createSignal } from "solid-js";
+import { For, createSignal } from "solid-js";
 
 const App: Component = () => {
   const [prompts, setPrompts] = createSignal<{id: number}[]>([{id: 0}]);

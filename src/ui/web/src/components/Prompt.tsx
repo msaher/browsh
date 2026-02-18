@@ -1,13 +1,19 @@
 import './Prompt.css'
 import { onMount, createSignal } from "solid-js";
-import { For } from "solid-js"
+import { For, Show } from "solid-js"
 import { Output } from "./Output"
 import type { Component } from 'solid-js';
-import * as cmd from '../hooks/cmd'
+import * as cmds from '../hooks/cmds'
 
-function parseInput(c: string): string {
+function parseInput(c: string): string[] {
   return c.match(/(?:[^\s"]+|"[^"]*")+/g)?.map(a => a.replace(/"/g, "")) || [];
 };
+
+function appendOutput(text: string, outputRef: HTMLDivElement | undefined) {
+  if (!outputRef) return
+  outputRef.textContent += text;
+  outputRef.scrollTop = outputRef.scrollHeight;
+}
 
 export const Prompt: Component<{
   focus?: boolean,
@@ -15,12 +21,8 @@ export const Prompt: Component<{
 }> = (props) => {
   let inputRef: HTMLInputElement | undefined;
   let outputRef: HTMLDivElement | undefined;
-  let cmdId: number | undefined
-  let ws: Websocket | null
 
-  const [showOutput, setShowOutput] = createSignal<boolean>(false)
-  const [metadata, startCmd] = cmd.useCmdSession()
-  const [command, setCommand] = createSignal<string>("")
+  const [cmd, startCmd, togglePause] = cmds.useCmdSession()
 
   onMount(() => {
     if (props.focus && inputRef) {
@@ -28,41 +30,39 @@ export const Prompt: Component<{
     }
   });
 
-  // TODO: handle errors
-
   const handleKeyDown = async (e: KeyboardEvent) => {
     if (e.key != "Enter" || !inputRef) {
       return
     }
-    const c = inputRef.value;
     inputRef.disabled = true;
-    setCommand(c);
-    const argv = parseInput(c);
+    const args = inputRef.value;
+    const argv = parseInput(args);
 
     // TODO: handle error?
-    const cmdId = await cmd.register(argv)
-    ws = startCmd(cmdId, outputRef)
-    setShowOutput(true)
+    const cmdId = await cmds.register(argv)
+    startCmd(cmdId, args, async (event: MessageEvent) => {
+      const text = await event.data.text()
+      appendOutput(text, outputRef)
+    })
     if (props.afterStartingSession) {
       props.afterStartingSession()
     }
-
   }
 
+  // TODO: fix dumb cmd!
   return (
     <div class="prompt">
       <div class="prompt-input-row">
         <label>$</label>
         <input type="text" ref={inputRef} onKeyDown={handleKeyDown}/>
       </div>
-      <Output
-        hidden={!showOutput()}
-        command={command()}
-        metadata={metadata()}
+      <Show when={cmd() !== null}>
+        <Output
+        cmd={cmd()!}
+        togglePause={togglePause}
         setRef={el => (outputRef = el)}
-        onSendStdin={() => cmd.sendStdin(ws)}
-        onSendEOF={() => cmd.sendEOF(ws)}
-      />
+        />
+      </Show>
     </div>
   );
 };

@@ -1,16 +1,7 @@
 import './Output.css'
 import type { Component } from 'solid-js';
 import { onCleanup, createSignal, createEffect} from "solid-js";
-
-const SIGNALS = {
-  TERM: "SIGTERM",
-  KILL: "SIGKILL",
-  STOP: "SIGSTOP",
-  CONT: "SIGCONT",
-  INT:  "SIGINT",
-} as const;
-
-type Signal = typeof SIGNALS[keyof typeof SIGNALS];
+import * as cmds from "../hooks/cmds"
 
 const formatDuration = (start: Date, end?: Date): string => {
   const endTime = end || new Date();
@@ -59,39 +50,28 @@ const ResumeIcon = () => (
 
 // TODO: rename. I don't like the name output
 export const Output: Component<{
-  command: string,
-  metadata?: ProcessMetadata,
+  cmd: cmds.Cmd,
+  togglePause: () => void,
   setRef?: (el: HTMLDivElement) => void,
-  hidden: boolean,
-  onSendStdin?: (text: string) => void,
-  onSendEOF?: () => void,
 }> = (props) => {
   let outputRef: HTMLDivElement | undefined;
 
   const getDuration = (): string => {
-    if (!props.metadata?.startedAt) return '';
-    if (props.metadata.status === 'exited' && props.metadata.exitedAt) {
+    if (!props.cmd.metadata.startedAt) return '';
+    if (props.cmd.metadata.status === 'exited' && props.cmd.metadata.exitedAt) {
       // finished - show final duration
-      return formatDuration(props.metadata.startedAt, props.metadata.exitedAt);
+      return formatDuration(props.cmd.metadata.startedAt, props.cmd.metadata.exitedAt);
     } else {
       // running - show live counter
-      return formatDuration(props.metadata.startedAt, new Date(props.metadata.startedAt.getTime() + timeElapsed()));
+      return formatDuration(props.cmd.metadata.startedAt, new Date(props.cmd.metadata.startedAt.getTime() + timeElapsed()));
     }
   };
 
-  const [isPaused, setIsPaused] = createSignal(false);
-  const handleSignal = async (signal: Signal) => {
-    if (!props.metadata?.pid) return;
+  // for non STOP/CONT signals
+  const handleSignal = async (signal: cmds.CmdSignal) => {
+    if (!props.cmd.metadata.pid) return;
     try {
-      await fetch(`${API_URL}/signal/${props.metadata.pid}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signal })
-      });
-
-      if (signal === SIGNALS.STOP) setIsPaused(true);
-      if (signal === SIGNALS.CONT) setIsPaused(false);
-
+      await cmds.signal(props.cmd, signal)
     } catch (err) {
       // TODO: handle error
       console.error('Failed to send signal:', err);
@@ -99,14 +79,13 @@ export const Output: Component<{
   };
 
   // reset pause state when process exits
-  createEffect(() => {
-    if (props.metadata?.status === 'exited') {
-      setIsPaused(false);
-    }
-  })
+  // createEffect(() => {
+  //   if (props.cmd.metadata.status === 'exited') {
+  //     setIsPaused(false);
+  //   }
+  // })
 
-
-  const getStatusIcon = (status: string, exitCode?: number, paused: boolean): string => {
+  const getStatusIcon = (status: string, paused: boolean, exitCode?: number): string => {
     if (paused) return '⏸';
     if (status === 'running') return '▶';
     if (status === 'exited' && exitCode === 0) return '✓';
@@ -118,16 +97,16 @@ export const Output: Component<{
   const [timeElapsed, setTimeElapsed] = createSignal<number>(0);
   let intervalId: number | undefined;
   createEffect(() => {
-    if (props.metadata?.status === 'running' && props.metadata.startedAt) {
+    if (props.cmd.metadata.status === 'running' && props.cmd.metadata.startedAt) {
       // start the interval if not already running
       if (!intervalId) {
         intervalId = setInterval(() => {
-          if (!isPaused()) {
-            setTimeElapsed(Date.now() - props.metadata!.startedAt.getTime());
+          if (props.cmd.isPaused) {
+            setTimeElapsed(Date.now() - props.cmd!.metadata.startedAt.getTime());
           }
         }, 100);
       }
-    } else if (props.metadata?.status === 'exited') {
+    } else if (props.cmd.metadata.status === 'exited') {
       // stop the interval when exited
       if (intervalId) {
         clearInterval(intervalId);
@@ -144,42 +123,41 @@ export const Output: Component<{
     <div
       class="output-container"
       classList={{
-        hidden: props.hidden,
-        'status-running': props.metadata?.status === 'running' && !isPaused(),
-        'status-success': props.metadata?.status === 'exited' && props.metadata?.exitCode === 0,
-        'status-error': props.metadata?.status === 'exited' && props.metadata?.exitCode !== 0,
-        'status-paused': isPaused(),
+        'status-running': props.cmd.metadata.status === 'running' && !props.cmd.isPaused,
+        'status-success': props.cmd.metadata.status === 'exited' && props.cmd.metadata.exitCode === 0,
+        'status-error': props.cmd.metadata.status === 'exited' && props.cmd.metadata.exitCode !== 0,
+        'status-paused': props.cmd.isPaused
       }}
     >
       <div class="output-header">
         <div class="output-header-left">
           <span class="status-icon">
-            {props.metadata ? getStatusIcon(props.metadata.status, props.metadata.exitCode, isPaused()) : '○'}
+            {getStatusIcon(props.cmd.metadata.status, props.cmd.isPaused, props.cmd.metadata.exitCode)}
           </span>
-          <span class="command">{props.command}</span>
+          <span class="command">{props.cmd.args}</span>
           <span class="status-text">
-            {isPaused()
+            {props.cmd.isPaused
               ? "paused"
-              : props.metadata?.status ?? "pending"}
+              : props.cmd.metadata.status}
           </span>
-          {props.metadata?.exitCode != null && (
-            <span class="exit-code">• {props.metadata.exitCode}</span>
+          {props.cmd.metadata.exitCode != null && (
+            <span class="exit-code">• {props.cmd.metadata.exitCode}</span>
           )}
         </div>
         <div class="output-header-right">
-        {props.metadata?.status === 'running' && (
+        {props.cmd.metadata.status === 'running' && (
           <>
           <button
             class="signal-btn"
-            onClick={() => handleSignal(isPaused() ? SIGNALS.CONT : SIGNALS.STOP)}
-            title={isPaused() ? "Resume (SIGCONT)" : "Pause (SIGSTOP)"}
+            onClick={props.togglePause}
+            title={props.cmd.isPaused ? "Resume (SIGCONT)" : "Pause (SIGSTOP)"}
           >
-            {isPaused() ? <ResumeIcon /> : <PauseIcon />}
+            {props.cmd.isPaused ? <ResumeIcon /> : <PauseIcon />}
           </button>
-          <button class="signal-btn" onClick={() => handleSignal(SIGNALS.INT)} title="Stop (SIGINT)">
+          <button class="signal-btn" onClick={() => handleSignal(cmds.SIGNALS.INT)} title="Stop (SIGINT)">
             <StopIcon />
           </button>
-          <button class="signal-btn signal-btn-danger" onClick={() => handleSignal(SIGNALS.KILL)} title="Force kill (SIGKILL)">
+          <button class="signal-btn signal-btn-danger" onClick={() => handleSignal(cmds.SIGNALS.KILL)} title="Force kill (SIGKILL)">
             <ForceKillIcon />
             </button>
           </>
@@ -188,7 +166,7 @@ export const Output: Component<{
           <button
             class="copy-btn"
             onClick={() => {
-              const text = outputRef.textContent
+              const text = outputRef!.textContent
               navigator.clipboard.writeText(text);
             }}
             title="Copy output"
@@ -196,12 +174,12 @@ export const Output: Component<{
             <CopyIcon />
           </button>
 
-          {props.metadata?.startedAt && (
+          {props.cmd.metadata.startedAt && (
             <span class="duration">{getDuration()}</span>
           )}
 
-          {props.metadata?.pid != null && (
-            <span class="pid">PID: {props.metadata.pid}</span>
+          {props.cmd.metadata.pid != null && (
+            <span class="pid">PID: {props.cmd.metadata.pid}</span>
           )}
         </div>
       </div>
@@ -210,7 +188,7 @@ export const Output: Component<{
         props.setRef?.(el)
       }}/>
 
-      {props.metadata?.status === 'running' && (
+      {props.cmd?.metadata.status === 'running' && (
         <div class="stdin-container">
         <span class="stdin-prompt">›</span>
         <textarea
@@ -222,13 +200,13 @@ export const Output: Component<{
             e.preventDefault();
             const text = e.currentTarget.value;
             if (text.trim()) {
-              props.onSendStdin?.(text + '\n');
+              cmds.sendStdin(props.cmd, text + '\n')
               e.currentTarget.value = '';
             }
           }
           if (e.key === 'd' && e.ctrlKey) {
             e.preventDefault();
-            props.onSendEOF?.();
+            cmds.sendEOF(props.cmd)
             console.log("sent eof")
             e.currentTarget.value = '';
           }
@@ -236,7 +214,7 @@ export const Output: Component<{
         />
         <button
         class="eof-btn"
-        onClick={() => props.onSendEOF?.()}
+        onClick={() => cmds.sendEOF(props.cmd)}
         title="Send EOF (Ctrl+D)"
         >
     EOF
