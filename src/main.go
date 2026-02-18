@@ -290,6 +290,25 @@ func (app *App) cmdSignal(w http.ResponseWriter, r *http.Request) {
 	writeJson(w, http.StatusOK, Envelope{"msg": "all good"}, nil)
 }
 
+func (app *App) complete(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Text string `json:"text"`
+	}
+	err := readJson(w, r, &payload)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	result, err := complete(payload.Text)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	writeJson(w, http.StatusOK, Envelope{"result": result}, nil)
+}
+
 //go:embed ui
 var uiFiles embed.FS
 
@@ -456,6 +475,7 @@ func makeHandler(app *App) http.Handler {
 	mux.HandleFunc("GET /ws/{id}", app.cmdWebsocket)
 	mux.HandleFunc("GET /cmd/{id}/metadata", app.cmdMetadata)
 	mux.HandleFunc("POST /signal/{pid}", app.cmdSignal)
+	mux.HandleFunc("POST /complete", app.complete)
 	mux.HandleFunc("/", app.unkownPath)
 
 	var handler http.Handler
