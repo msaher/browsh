@@ -171,14 +171,16 @@ func (app *App) runCmdSocket(cmd *Cmd, conn *websocket.Conn) error {
 
 func (app *App) cmdWebsocket(w http.ResponseWriter, r *http.Request) {
 	id := int64PathValue(r, "id")
-	// TODO:
+
 	if id == 0 {
-		panic("got id 0")
+		msg := "invalid cmd id"
+		app.errorResponse(w, r, http.StatusBadRequest, msg)
+		return
 	}
 	cmd := app.Cmds[id]
-	// TODO: not found
 	if cmd == nil {
-		panic("cant find cmd in app.cmds")
+		app.notFound(w, r, "not found")
+		return
 	}
 
 	var upgrader = websocket.Upgrader{
@@ -205,12 +207,24 @@ func (app *App) registerCmd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := readJson(w, r, &payload)
-	// TODO: show error
 	if err != nil {
-		panic(err)
+		app.badRequestResponse(w, r, err)
+		return
 	}
 
-	c := exec.Command(payload.Argv[0], payload.Argv[1:]...)
+	if len(payload.Argv) == 0 {
+		msg := "empty argv"
+		app.errorResponse(w, r, http.StatusBadRequest, msg)
+		return
+	}
+
+	path, err := exec.LookPath(payload.Argv[0])
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	c := &exec.Cmd{Path: path, Args: payload.Argv[0:]}
 	cmdId := addCmd(app, c)
 
 	writeJson(w, http.StatusOK, Envelope{"id": cmdId}, nil)

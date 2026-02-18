@@ -1,0 +1,32 @@
+.completion-list {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  background: #252525;
+  border: 1px solid #3e3e3e;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 200px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.completion-item {
+  padding: 8px 12px;
+  color: #d4d4d4;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.completion-item:hover {
+  background: #2d2d2d;
+}
+
+.completion-item.active {
+  background: #4a9eff;
+  color: #ffffff;
+}
