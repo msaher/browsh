@@ -9,3 +9,4 @@ export function addCompletion(input: HTMLInputElement, item: string) {
   if (cursorPos === 0) {
     input.value = item
     // return [0, 0] as const
+    return
