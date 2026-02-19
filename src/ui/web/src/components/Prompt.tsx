@@ -7,33 +7,6 @@ import type { Component } from 'solid-js';
 import * as cmds from '../hooks/cmds'
 import * as cmp from '../hooks/cmp'
 
-interface CompletionRequest {
-  line: string;
-  cursor: number;
-}
-
-function getCompletionContext(input: HTMLInputElement) {
-  const line = input.value;
-  const cursor = input.selectionStart || 0;
-
-  // find word boundaries around cursor
-  // look backwards for word start (space, start of line, or special chars)
-  let wordStart = cursor;
-  while (wordStart > 0 && !/\s/.test(line[wordStart - 1])) {
-    wordStart--;
-  }
-
-  // look forwards for word end (space, end of line)
-  let wordEnd = cursor;
-  while (wordEnd < line.length && !/\s/.test(line[wordEnd])) {
-    wordEnd++;
-  }
-
-  const prefix = line.substring(wordStart, cursor);
-
-  return { line, cursor, wordStart, wordEnd, prefix };
-}
-
 function parseInput(c: string): string[] {
   return c.match(/(?:[^\s"]+|"[^"]*")+/g)?.map(a => a.replace(/"/g, "")) || [];
 };
@@ -52,11 +25,8 @@ export const Prompt: Component<{
   let outputRef: HTMLDivElement | undefined;
 
   const [cmd, startCmd, togglePause] = cmds.useCmdSession()
-
-  // TODO: maybe make this a hook
-  const [suggestions, setSuggestions] = createSignal<string[]>(["one", "two", "three"]);
-  const [activeIndex, setActiveIndex] = createSignal(0);
   const [showCompletion, setShowCompletion] = createSignal(false)
+  const comp = cmp.useCompletion()
 
   onMount(() => {
     if (props.focus && inputRef) {
@@ -81,27 +51,18 @@ export const Prompt: Component<{
     }
   };
 
-  const onTab = () => {
+  const onTab = async () => {
     const input = inputRef!
 
-    if (suggestions().length === 0) {
-      return
-    }
-
     if (!showCompletion()) {
-      // TODO: maybe make an obj intead of this
+      await comp.populate(input.value)
       setShowCompletion(true)
-      setActiveIndex(0)
     } else {
-      const nextIdx = (activeIndex() + 1) % suggestions().length
-      setActiveIndex(nextIdx)
+      comp.setNext()
     }
 
-    const {start, end} = cmp.getPrevSymbolRange(input)
-    const sug = suggestions()[activeIndex()]
-
-    // replace
-    input.value = input.value.slice(0, start) + sug + input.value.slice(end);
+    const item = comp.items()[comp.activeIdx()]
+    cmp.addCompletion(input, item)
   };
 
   const handleKeyDown = async (e: KeyboardEvent) => {
@@ -126,8 +87,8 @@ export const Prompt: Component<{
     <div class="prompt">
       <Show when={showCompletion()}>
         <CompletionList
-          suggestions={suggestions()}
-          activeIndex={activeIndex()}
+          suggestions={comp.items()}
+          activeIdx={comp.activeIdx()}
         />
       </Show>
       <div class="prompt-input-row">

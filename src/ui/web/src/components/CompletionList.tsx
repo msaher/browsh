@@ -3,6 +3,7 @@ import { For, Show } from "solid-js";
 
 export function CompletionList(props: {
   suggestions: string[],
+  activeIdx: number,
 }) {
   return (
     <div class="completion-list">
@@ -11,7 +12,7 @@ export function CompletionList(props: {
           <div
             classList={{
               "completion-item": true,
-              active: i() === props.activeIndex
+              active: i() === props.activeIdx
             }}
           >
             {item}
