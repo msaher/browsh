@@ -16,6 +16,7 @@ export function addCompletion(input: HTMLInputElement, item: string) {
   const text = input.value
   if (text[cursorPos-1].trim() === "") {
     input.value = input.value + item
+    return
     // return  [cursorPos, cursorPos] as const
   }
 
