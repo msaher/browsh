@@ -34,7 +34,7 @@ export const Prompt: Component<{
     }
   });
 
-  const onEnter = async () => {
+  async function onEnter() {
     const input = inputRef!
     input.disabled = true;
     const args = input.value;
@@ -49,9 +49,9 @@ export const Prompt: Component<{
     if (props.afterStartingSession) {
       props.afterStartingSession()
     }
-  };
+  }
 
-  const onTab = async () => {
+  async function onTab() {
     const input = inputRef!
 
     if (!showCompletion()) {
@@ -63,9 +63,9 @@ export const Prompt: Component<{
 
     const item = comp.items()[comp.activeIdx()]
     cmp.addCompletion(input, item)
-  };
+  }
 
-  const handleKeyDown = async (e: KeyboardEvent) => {
+  async function handleKeyDown(e: KeyboardEvent) {
     if (!inputRef) {
       return
     }
@@ -80,7 +80,6 @@ export const Prompt: Component<{
       e.preventDefault()
       onTab()
     }
-
   }
 
   return (
