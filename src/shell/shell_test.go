@@ -6,3 +6,4 @@ import (
 )
 
 func tokenTypes(tokens []Token) []TokenType {
+	types := make([]TokenType, len(tokens))
