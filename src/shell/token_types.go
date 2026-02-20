@@ -9,3 +9,4 @@ const (
 	TokenString
 	TokenDupOut
 	TokenOut
+	TokenIn
