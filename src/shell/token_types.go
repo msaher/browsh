@@ -10,3 +10,4 @@ const (
 	TokenDupOut
 	TokenOut
 	TokenIn
+	TokenPipe
