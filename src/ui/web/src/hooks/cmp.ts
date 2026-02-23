@@ -10,3 +10,4 @@ export function addCompletion(input: HTMLInputElement, item: string) {
     input.value = item
     // return [0, 0] as const
     return
+  }
