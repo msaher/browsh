@@ -5,3 +5,4 @@ import (
 	"fmt"
 )
 
+func tokenTypes(tokens []Token) []TokenType {
