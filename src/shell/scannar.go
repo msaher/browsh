@@ -10,3 +10,4 @@ type Token struct {
 	Type TokenType
 	Content string
 	Line int
+}
