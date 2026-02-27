@@ -7,3 +7,4 @@ export function addCompletion(input: HTMLInputElement, item: string) {
   const cursorPos = input.selectionStart ?? 0;
   // insert
   if (cursorPos === 0) {
+    input.value = item
