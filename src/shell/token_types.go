@@ -7,3 +7,4 @@ const (
 	TokenWord TokenType = iota
 	TokenFd
 	TokenString
+	TokenDupOut
