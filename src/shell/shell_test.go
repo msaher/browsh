@@ -10,3 +10,4 @@ func tokenTypes(tokens []Token) []TokenType {
 	for i, t := range tokens {
 		types[i] = t.Type
 	}
+	return types
