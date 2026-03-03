@@ -12,3 +12,41 @@ const (
 	TokenIn
 	TokenPipe
 	TokenOrIf
+	TokenAndIf
+	TokenEOF
+	TokenAppend
+	TokenError
+	
+)
+
+func (ttype TokenType) String() string {
+	switch ttype {
+	case TokenWord:
+		return "TokenWord"
+	case TokenFd:
+		return "TokenFd"
+	case TokenString:
+		return "TokenString"
+	case TokenDupOut:
+		return "TokenDupOut"
+	case TokenOut:
+		return "TokenOut"
+	case TokenIn:
+		return "TokenIn"
+	case TokenPipe:
+		return "TokenPipe"
+	case TokenOrIf:
+		return "TokenOrIf"
+	case TokenAndIf:
+		return "TokenAndIf"
+	case TokenEOF:
+		return "TokenEOF"
+	case TokenAppend:
+		return "TokenAppend"
+	case TokenError:
+		return "TokenError"
+	
+	default:
+		panic("unreachable")
+	}
+}

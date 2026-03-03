@@ -12,3 +12,64 @@ export function addCompletion(input: HTMLInputElement, item: string) {
     return
   }
 
+  // blank
+  const text = input.value
+  if (text[cursorPos-1].trim() === "") {
+    input.value = input.value + item
+    return
+    // return  [cursorPos, cursorPos] as const
+  }
+
+  start = cursorPos-1
+  while (start >= 0 && text[start].trim() !== "") {
+    start--;
+  }
+  // console.log(input.value.slice(0, start+1) + item)
+
+  // cmp.expect is dumb and dumps entire cmdline if prev char
+  // is not blank
+  input.value = item
+
+  // input.value = input.value.slice(0, start+1) + item + input.value.slice(cursorPos)
+  // return [start + 1, cursorPos]
+}
+
+export async function getCompletions(text: string): Promise<string[]> {
+  const res = await fetch(`${config.API_URL}/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text })
+  })
+  const data = await res.json()
+  return data.result
+}
+
+export function useCompletion() {
+  const [items, setItems] = createSignal<string[]>([])
+  const [activeIdx, setActiveIdx] = createSignal<number>(0)
+
+  async function populate(text: string) {
+    const result = await getCompletions(text)
+    setItems(result)
+  }
+
+  function setNext() {
+    const idx = (activeIdx() + 1) % items().length
+    setActiveIdx(idx)
+  }
+
+  function setPrev() {
+    const idx = (activeIdx() - 1) % items().length
+    setActiveIdx(idx)
+  }
+
+
+  return {
+    items,
+    activeIdx,
+    setActiveIdx,
+    populate,
+    setNext,
+    setPrev,
+  }
+}
