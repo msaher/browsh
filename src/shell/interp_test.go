@@ -294,3 +294,197 @@ func TestContainsGlob(t *testing.T) {
 		}
 	}
 }
+
+// runStr parses a source string and executes it, returning stdout, stderr, and any error.
+func runStr(t *testing.T, dir, src string) (stdout, stderr string, err error) {
+	t.Helper()
+
+	outFile := filepath.Join(dir, "_stdout")
+	errFile := filepath.Join(dir, "_stderr")
+
+	outF, e := os.Create(outFile)
+	if e != nil {
+		t.Fatal(e)
+	}
+	errF, e := os.Create(errFile)
+	if e != nil {
+		t.Fatal(e)
+	}
+
+	tokens, scanErr := Scan(src)
+	if scanErr != nil {
+		t.Fatalf("scan error: %v", scanErr)
+	}
+
+	node, parseErr := NewParser(tokens).Parse()
+	if parseErr != nil {
+		t.Fatalf("parse error: %v", parseErr)
+	}
+
+	inter := NewInterpreter(dir)
+	inter.Stdout = outF
+	inter.Stderr = errF
+
+	err = inter.Exec(node)
+
+	outF.Close()
+	errF.Close()
+
+	outBytes, _ := os.ReadFile(outFile)
+	errBytes, _ := os.ReadFile(errFile)
+	return string(outBytes), string(errBytes), err
+}
+
+// --- builtin: echo ---
+
+func TestBuiltinEcho(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "echo hello world")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "hello world") {
+		t.Errorf("want 'hello world', got %q", stdout)
+	}
+}
+
+func TestBuiltinEchoNoArgs(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "echo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// should output a blank line
+	if stdout != "\n" {
+		t.Errorf("want blank line, got %q", stdout)
+	}
+}
+
+func TestBuiltinEchoRedirect(t *testing.T) {
+	dir := t.TempDir()
+	_, _, err := runStr(t, dir, "echo hello > out.txt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "out.txt"))
+	if !strings.Contains(string(data), "hello") {
+		t.Errorf("want 'hello' in file, got %q", string(data))
+	}
+}
+
+// --- builtin: pwd ---
+
+func TestBuiltinPwd(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "pwd")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, dir) {
+		t.Errorf("want %q in pwd output, got %q", dir, stdout)
+	}
+}
+
+func TestBuiltinPwdRedirect(t *testing.T) {
+	dir := t.TempDir()
+	_, _, err := runStr(t, dir, "pwd > here.txt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "here.txt"))
+	if !strings.Contains(string(data), dir) {
+		t.Errorf("want cwd in file, got %q", string(data))
+	}
+}
+
+// --- builtin: cd ---
+
+func TestBuiltinCd(t *testing.T) {
+    dir := t.TempDir()
+    sub := filepath.Join(dir, "sub")
+    os.Mkdir(sub, 0755)
+
+    inter := NewInterpreter(dir)
+    tokens, err := Scan("cd sub")
+    if err != nil {
+        t.Fatalf("scan error: %v", err)
+    }
+    node, err := NewParser(tokens).Parse()
+    if err != nil {
+        t.Fatalf("parse error: %v", err)
+    }
+    if err := inter.Exec(node); err != nil {
+        t.Fatalf("unexpected error: %v", err)
+    }
+
+    if inter.Cwd != sub {
+        t.Errorf("want cwd %q, got %q", sub, inter.Cwd)
+    }
+}
+
+func TestBuiltinCdAbsolute(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	os.Mkdir(sub, 0755)
+
+	inter := NewInterpreter(dir)
+	tokens, _ := Scan("cd " + sub)
+	node, _ := NewParser(tokens).Parse()
+	if err := inter.Exec(node); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if inter.Cwd != sub {
+		t.Errorf("want cwd %q, got %q", sub, inter.Cwd)
+	}
+}
+
+func TestBuiltinCdNonexistent(t *testing.T) {
+	dir := t.TempDir()
+	_, stderr, err := runStr(t, dir, "cd doesnotexist")
+	if err == nil {
+		t.Fatal("expected error for nonexistent dir, got nil")
+	}
+	if !strings.Contains(stderr, "cd") {
+		t.Errorf("want error message on stderr, got %q", stderr)
+	}
+}
+
+func TestBuiltinCdNotADir(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "afile"), []byte("x"), 0644)
+	_, stderr, err := runStr(t, dir, "cd afile")
+	if err == nil {
+		t.Fatal("expected error when cd-ing into a file, got nil")
+	}
+	if !strings.Contains(stderr, "not a directory") {
+		t.Errorf("want 'not a directory' on stderr, got %q", stderr)
+	}
+}
+
+func TestBuiltinCdThenPwd(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	os.Mkdir(sub, 0755)
+
+	// cd into sub then pwd should reflect the new cwd
+	inter := NewInterpreter(dir)
+
+	outFile := filepath.Join(dir, "_stdout")
+	outF, _ := os.Create(outFile)
+	inter.Stdout = outF
+	inter.Stderr = inter.Stderr
+
+	for _, src := range []string{"cd sub", "pwd"} {
+		tokens, _ := Scan(src)
+		node, _ := NewParser(tokens).Parse()
+		if err := inter.Exec(node); err != nil {
+			t.Fatalf("%q: unexpected error: %v", src, err)
+		}
+	}
+	outF.Close()
+
+	data, _ := os.ReadFile(outFile)
+	if !strings.Contains(string(data), sub) {
+		t.Errorf("want %q in pwd output after cd, got %q", sub, string(data))
+	}
+}
