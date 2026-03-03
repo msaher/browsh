@@ -8,6 +8,30 @@ import (
 	"strings"
 )
 
+type BuiltinFunc func(inter *Interpreter, cmd *Cmd)
+
+var Builtins = map[string]BuiltinFunc{
+	"cd":  builtinCd,
+	"pwd": builtinPwd,
+	"echo": builtinEcho,
+}
+
+type Cmd struct {
+	exec.Cmd
+	IsBuiltin bool
+	Done      chan int
+	ExitCode  int
+}
+
+// TODO: close stderr
+func closeOutput(inter *Interpreter, cmd *Cmd) {
+    if f, ok := cmd.Stdout.(*os.File); ok && f != nil {
+        if f != inter.Stdout && f != inter.Stderr {
+            f.Close()
+        }
+    }
+}
+
 type Interpreter struct {
 	Cwd    string
 	Stdin  *os.File
@@ -40,19 +64,22 @@ func (inter *Interpreter) Exec(node *Node) error {
 		return inter.Exec(node.Kids[1])
 
 	default:
-		// zero token type = cmd node
 		return inter.ExecCmd(node)
 	}
 }
 
 func (inter *Interpreter) ExecCmd(node *Node) error {
-	cmd := &exec.Cmd{
-		Dir:    inter.Cwd,
-		Stdin:  inter.Stdin,
-		Stdout: inter.Stdout,
-		Stderr: inter.Stderr,
+	cmd := &Cmd{
+		Cmd: exec.Cmd{
+			Dir:    inter.Cwd,
+			Stdin:  inter.Stdin,
+			Stdout: inter.Stdout,
+			Stderr: inter.Stderr,
+		},
+		Done: make(chan int, 1),
 	}
 
+	// collect args and apply redirects
 	for _, kid := range node.Kids {
 		switch kid.Token.Type {
 		case TokenWord:
@@ -90,12 +117,54 @@ func (inter *Interpreter) ExecCmd(node *Node) error {
 	if len(cmd.Args) == 0 {
 		return fmt.Errorf("empty command")
 	}
-	cmd.Path, _ = exec.LookPath(cmd.Args[0])
-	return cmd.Run()
+
+	_, cmd.IsBuiltin = Builtins[cmd.Args[0]]
+	if !cmd.IsBuiltin {
+		cmd.Path, _ = exec.LookPath(cmd.Args[0])
+	}
+
+	return inter.CmdRun(cmd)
+}
+
+// starts the command. external commands call cmd.Start; builtins run in a goroutine.
+func (inter *Interpreter) CmdStart(cmd *Cmd) error {
+	if !cmd.IsBuiltin {
+		return cmd.Start()
+	}
+	fn := Builtins[cmd.Args[0]]
+	go func() {
+		fn(inter, cmd)
+		closeOutput(inter, cmd)
+		close(cmd.Done)
+	}()
+	return nil
+}
+
+// waits for the command to finish and returns any error.
+func (inter *Interpreter) CmdWait(cmd *Cmd) error {
+	if !cmd.IsBuiltin {
+		err := cmd.Wait()
+		closeOutput(inter, cmd)
+		return err
+	}
+	code := <-cmd.Done
+	// cmd.closeOutput()
+	if code != 0 {
+		return fmt.Errorf("exit status %d", code)
+	}
+	return nil
+}
+
+// runs the command to completion.
+func (inter *Interpreter) CmdRun(cmd *Cmd) error {
+	if err := inter.CmdStart(cmd); err != nil {
+		return err
+	}
+	return inter.CmdWait(cmd)
 }
 
 // sets cmd.Stdout or cmd.Stderr for a ">" redirect node.
-func (inter *Interpreter) ApplyOut(cmd *exec.Cmd, kid *Node) error {
+func (inter *Interpreter) ApplyOut(cmd *Cmd, kid *Node) error {
 	fd, target, err := inter.ResolveOutTarget(kid)
 	if err != nil {
 		return err
@@ -117,7 +186,7 @@ func (inter *Interpreter) ApplyOut(cmd *exec.Cmd, kid *Node) error {
 }
 
 // sets cmd.Stdout for a ">>" redirect node.
-func (inter *Interpreter) ApplyAppend(cmd *exec.Cmd, kid *Node) error {
+func (inter *Interpreter) ApplyAppend(cmd *Cmd, kid *Node) error {
 	_, target, err := inter.ResolveOutTarget(kid)
 	if err != nil {
 		return err
@@ -131,7 +200,7 @@ func (inter *Interpreter) ApplyAppend(cmd *exec.Cmd, kid *Node) error {
 }
 
 // sets cmd.Stdin for a "<" redirect node.
-func (inter *Interpreter) ApplyIn(cmd *exec.Cmd, kid *Node) error {
+func (inter *Interpreter) ApplyIn(cmd *Cmd, kid *Node) error {
 	target := kid.Kids[0].Token.Content
 	if !IsAbs(target) {
 		target = inter.Cwd + "/" + target
@@ -145,7 +214,7 @@ func (inter *Interpreter) ApplyIn(cmd *exec.Cmd, kid *Node) error {
 }
 
 // wires one of cmd's streams to another for a ">&" node.
-func (inter *Interpreter) ApplyDupOut(cmd *exec.Cmd, kid *Node) error {
+func (inter *Interpreter) ApplyDupOut(cmd *Cmd, kid *Node) error {
 	srcFd, dstFd, err := inter.ResolveDupOut(kid)
 	if err != nil {
 		return err
@@ -226,6 +295,7 @@ func (inter *Interpreter) ResolveDupOut(kid *Node) (int, int, error) {
 	return srcFd, dstFd, nil
 }
 
+// expands a word token, handling globs.
 func (inter *Interpreter) ExpandWord(word string) ([]string, error) {
 	if !ContainsGlob(word) {
 		return []string{word}, nil
