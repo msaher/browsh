@@ -8,17 +8,14 @@ import (
 	"strings"
 )
 
-// signature for builtin command implementations.
 type BuiltinFunc func(inter *Interpreter, cmd *Cmd)
 
-// map of builtin command name to implementation.
 var Builtins = map[string]BuiltinFunc{
 	"cd":   builtinCd,
 	"pwd":  builtinPwd,
 	"echo": builtinEcho,
 }
 
-// wraps exec.Cmd with shell builtins support.
 type Cmd struct {
 	exec.Cmd
 	IsBuiltin bool
@@ -50,6 +47,11 @@ func closeOutput(inter *Interpreter, cmd *Cmd) {
 			f.Close()
 		}
 	}
+
+	if cmd.Stdout == cmd.Stderr {
+		return
+	}
+
 	if f, ok := cmd.Stderr.(*os.File); ok && f != nil {
 		if f != inter.Stdout && f != inter.Stderr {
 			f.Close()
