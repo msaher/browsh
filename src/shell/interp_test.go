@@ -565,3 +565,117 @@ func TestPipeBuiltinRight(t *testing.T) {
 		t.Errorf("want 'sub' in output, got %q", stdout)
 	}
 }
+
+// --- && ---
+
+func TestAndIfBothSucceed(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "echo foo && echo bar")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "foo") || !strings.Contains(stdout, "bar") {
+		t.Errorf("want both outputs, got %q", stdout)
+	}
+}
+
+func TestAndIfShortCircuit(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "false && echo bar")
+	if err == nil {
+		t.Fatal("want error from false, got nil")
+	}
+	if strings.Contains(stdout, "bar") {
+		t.Errorf("want second command skipped, got %q", stdout)
+	}
+}
+
+func TestAndIfChainStopsOnFailure(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "echo a && false && echo c")
+	if err == nil {
+		t.Fatal("want error, got nil")
+	}
+	if !strings.Contains(stdout, "a") {
+		t.Errorf("want first command to run, got %q", stdout)
+	}
+	if strings.Contains(stdout, "c") {
+		t.Errorf("want third command skipped, got %q", stdout)
+	}
+}
+
+func TestAndIfAllThreeSucceed(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "echo a && echo b && echo c")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "a") || !strings.Contains(stdout, "b") || !strings.Contains(stdout, "c") {
+		t.Errorf("want all three outputs, got %q", stdout)
+	}
+}
+
+// --- || ---
+
+func TestOrIfFirstSucceeds(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "echo foo || echo bar")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "foo") {
+		t.Errorf("want 'foo', got %q", stdout)
+	}
+	if strings.Contains(stdout, "bar") {
+		t.Errorf("want second command skipped, got %q", stdout)
+	}
+}
+
+func TestOrIfFirstFails(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "false || echo bar")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "bar") {
+		t.Errorf("want 'bar', got %q", stdout)
+	}
+}
+
+func TestOrIfChainStopsOnFirstSuccess(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "false || echo b || echo c")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "b") {
+		t.Errorf("want 'b', got %q", stdout)
+	}
+	if strings.Contains(stdout, "c") {
+		t.Errorf("want third command skipped, got %q", stdout)
+	}
+}
+
+func TestOrIfAllFail(t *testing.T) {
+	dir := t.TempDir()
+	_, _, err := runStr(t, dir, "false || false || false")
+	if err == nil {
+		t.Fatal("want error when all fail, got nil")
+	}
+}
+
+// --- && and || combined ---
+
+func TestAndIfThenOrIf(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "false && echo a || echo b")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(stdout, "a") {
+		t.Errorf("want 'a' skipped, got %q", stdout)
+	}
+	if !strings.Contains(stdout, "b") {
+		t.Errorf("want 'b', got %q", stdout)
+	}
+}
