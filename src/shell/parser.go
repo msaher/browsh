@@ -147,7 +147,6 @@ func (p *Parser) ParsePipeline() (*Node, error) {
 func (p *Parser) ParseCmd() (*Node, error) {
 	cmd := &Node{}
 
-	// Leading redirects.
 	for p.IsRedirectStart() {
 		r, err := p.ParseRedirect()
 		if err != nil {
@@ -156,14 +155,12 @@ func (p *Parser) ParseCmd() (*Node, error) {
 		cmd.Kids = append(cmd.Kids, r)
 	}
 
-	// Require at least one word/string.
 	if p.Peek().Type != TokenWord && p.Peek().Type != TokenString {
 		t := p.Peek()
 		return nil, fmt.Errorf("line %d: expected command word, got %q", t.Line, t.Content)
 	}
 	cmd.Kids = append(cmd.Kids, &Node{Token: p.Consume()})
 
-	// remaining words, strings, and redirects.
 	for {
 		switch p.Peek().Type {
 		case TokenWord, TokenString:
@@ -182,7 +179,7 @@ func (p *Parser) ParseCmd() (*Node, error) {
 	}
 }
 
-// IsRedirectStart returns true when the next token can begin a redirect.
+// returns true when the next token can begin a redirect.
 func (p *Parser) IsRedirectStart() bool {
 	switch p.Peek().Type {
 	case TokenFd, TokenOut, TokenDupOut, TokenIn, TokenAppend:

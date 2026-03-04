@@ -106,7 +106,6 @@ func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 			Stdout: inter.Stdout,
 			Stderr: inter.Stderr,
 		},
-		Done: make(chan int, 1),
 	}
 
 	for _, kid := range node.Kids {
@@ -169,6 +168,7 @@ func (inter *Interpreter) CmdStart(cmd *Cmd) error {
 		return cmd.Start()
 	}
 	fn := Builtins[cmd.Args[0]]
+	cmd.Done = make(chan int, 1)
 	go func() {
 		fn(inter, cmd)
 		closeOutput(inter, cmd)
