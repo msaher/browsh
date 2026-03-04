@@ -53,6 +53,9 @@ func builtinCd(inter *Interpreter, cmd *Cmd) {
 		return
 	}
 
-	inter.Cwd = dir
+	// dont change unless we're not in a pipeline
+	if cmd.Stdout == inter.Stdout {
+		inter.Cwd = dir
+	}
 	cmd.Done <- 0
 }
