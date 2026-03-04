@@ -123,6 +123,7 @@ func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 			// skip quotes
 			content := kid.Token.Content
 			str := content[1:len(content)-1]
+			str = ExpandTilde(str)
 			cmd.Args = append(cmd.Args, str)
 
 		case TokenOut:
@@ -282,7 +283,7 @@ func (inter *Interpreter) ApplyAppend(cmd *Cmd, kid *Node) error {
 
 // sets cmd.Stdin for a "<" redirect node.
 func (inter *Interpreter) ApplyIn(cmd *Cmd, kid *Node) error {
-	target := kid.Kids[0].Token.Content
+	target := ExpandTilde(kid.Kids[0].Token.Content)
 	if !IsAbs(target) {
 		target = inter.Cwd + "/" + target
 	}
@@ -345,7 +346,7 @@ func (inter *Interpreter) ResolveOutTarget(kid *Node) (int, string, error) {
 		targetNode = kid.Kids[0]
 	}
 
-	target := targetNode.Token.Content
+	target := ExpandTilde(targetNode.Token.Content)
 	if !IsAbs(target) {
 		target = inter.Cwd + "/" + target
 	}
@@ -376,7 +377,18 @@ func (inter *Interpreter) ResolveDupOut(kid *Node) (int, int, error) {
 	return srcFd, dstFd, nil
 }
 
+func ExpandTilde(s string) string {
+	if s == "~" {
+		return os.Getenv("HOME")
+	}
+	if strings.HasPrefix(s, "~/") {
+		return os.Getenv("HOME") + s[1:]
+	}
+	return s
+}
+
 func (inter *Interpreter) ExpandWord(word string) ([]string, error) {
+	word = ExpandTilde(word)
 	if !ContainsGlob(word) {
 		return []string{word}, nil
 	}
