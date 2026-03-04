@@ -123,7 +123,6 @@ func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 			// skip quotes
 			content := kid.Token.Content
 			str := content[1:len(content)-1]
-			str = ExpandTilde(str)
 			cmd.Args = append(cmd.Args, str)
 
 		case TokenOut:

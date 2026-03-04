@@ -742,6 +742,7 @@ func TestTildeNoHome(t *testing.T) {
 	}
 }
 
+// shouldn't expand in strings
 func TestTildeInString(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
@@ -749,7 +750,7 @@ func TestTildeInString(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := dir + "/foo"
+	want := "~/foo"
 	if !strings.Contains(stdout, want) {
 		t.Errorf("want %q, got %q", want, stdout)
 	}
