@@ -8,28 +8,22 @@ import (
 	"strings"
 )
 
+// signature for builtin command implementations.
 type BuiltinFunc func(inter *Interpreter, cmd *Cmd)
 
+// map of builtin command name to implementation.
 var Builtins = map[string]BuiltinFunc{
-	"cd":  builtinCd,
-	"pwd": builtinPwd,
+	"cd":   builtinCd,
+	"pwd":  builtinPwd,
 	"echo": builtinEcho,
 }
 
+// wraps exec.Cmd with shell builtins support.
 type Cmd struct {
 	exec.Cmd
 	IsBuiltin bool
 	Done      chan int
 	ExitCode  int
-}
-
-// TODO: close stderr
-func closeOutput(inter *Interpreter, cmd *Cmd) {
-    if f, ok := cmd.Stdout.(*os.File); ok && f != nil {
-        if f != inter.Stdout && f != inter.Stderr {
-            f.Close()
-        }
-    }
 }
 
 type Interpreter struct {
@@ -48,27 +42,63 @@ func NewInterpreter(cwd string) *Interpreter {
 	}
 }
 
-func (inter *Interpreter) Exec(node *Node) error {
-	switch node.Token.Type {
-	case TokenAndIf:
-		if err := inter.Exec(node.Kids[0]); err != nil {
-			return err
+// closes cmd's stdout and stderr if they are files that don't belong to the
+// interpreter's own streams. handles both redirect files and pipe write ends.
+func closeOutput(inter *Interpreter, cmd *Cmd) {
+	if f, ok := cmd.Stdout.(*os.File); ok && f != nil {
+		if f != inter.Stdout && f != inter.Stderr {
+			f.Close()
 		}
-		return inter.Exec(node.Kids[1])
-
-	case TokenOrIf:
-		err := inter.Exec(node.Kids[0])
-		if err == nil {
-			return nil
+	}
+	if f, ok := cmd.Stderr.(*os.File); ok && f != nil {
+		if f != inter.Stdout && f != inter.Stderr {
+			f.Close()
 		}
-		return inter.Exec(node.Kids[1])
-
-	default:
-		return inter.ExecCmd(node)
 	}
 }
 
-func (inter *Interpreter) ExecCmd(node *Node) error {
+func (inter *Interpreter) Exec(node *Node) error {
+	switch node.Token.Type {
+	case TokenAndIf:
+		for _, kid := range node.Kids {
+			if err := inter.Exec(kid); err != nil {
+				return err
+			}
+		}
+		return nil
+
+	case TokenOrIf:
+		var err error
+		for _, kid := range node.Kids {
+			err = inter.Exec(kid)
+			if err == nil {
+				return nil
+			}
+		}
+		return err
+
+	case TokenPipe:
+		var cmds []*Cmd
+		for _, kid := range node.Kids {
+			cmd, err := inter.BuildCmd(kid)
+			if err != nil {
+				return err
+			}
+			cmds = append(cmds, cmd)
+		}
+		return inter.RunPipe(cmds)
+
+	default:
+		cmd, err := inter.BuildCmd(node)
+		if err != nil {
+			return err
+		}
+		return inter.CmdRun(cmd)
+	}
+}
+
+// builds a Cmd from a cmd node, applying args and redirects.
+func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 	cmd := &Cmd{
 		Cmd: exec.Cmd{
 			Dir:    inter.Cwd,
@@ -79,13 +109,12 @@ func (inter *Interpreter) ExecCmd(node *Node) error {
 		Done: make(chan int, 1),
 	}
 
-	// collect args and apply redirects
 	for _, kid := range node.Kids {
 		switch kid.Token.Type {
 		case TokenWord:
 			expanded, err := inter.ExpandWord(kid.Token.Content)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			cmd.Args = append(cmd.Args, expanded...)
 
@@ -94,28 +123,28 @@ func (inter *Interpreter) ExecCmd(node *Node) error {
 
 		case TokenOut:
 			if err := inter.ApplyOut(cmd, kid); err != nil {
-				return err
+				return nil, err
 			}
 
 		case TokenAppend:
 			if err := inter.ApplyAppend(cmd, kid); err != nil {
-				return err
+				return nil, err
 			}
 
 		case TokenIn:
 			if err := inter.ApplyIn(cmd, kid); err != nil {
-				return err
+				return nil, err
 			}
 
 		case TokenDupOut:
 			if err := inter.ApplyDupOut(cmd, kid); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
 
 	if len(cmd.Args) == 0 {
-		return fmt.Errorf("empty command")
+		return nil, fmt.Errorf("empty command")
 	}
 
 	_, cmd.IsBuiltin = Builtins[cmd.Args[0]]
@@ -123,6 +152,14 @@ func (inter *Interpreter) ExecCmd(node *Node) error {
 		cmd.Path, _ = exec.LookPath(cmd.Args[0])
 	}
 
+	return cmd, nil
+}
+
+func (inter *Interpreter) ExecCmd(node *Node) error {
+	cmd, err := inter.BuildCmd(node)
+	if err != nil {
+		return err
+	}
 	return inter.CmdRun(cmd)
 }
 
@@ -140,15 +177,20 @@ func (inter *Interpreter) CmdStart(cmd *Cmd) error {
 	return nil
 }
 
-// waits for the command to finish and returns any error.
+// waits for the command to finish, populates cmd.ExitCode, and returns any error.
 func (inter *Interpreter) CmdWait(cmd *Cmd) error {
 	if !cmd.IsBuiltin {
 		err := cmd.Wait()
 		closeOutput(inter, cmd)
+		if err != nil {
+			if exit, ok := err.(*exec.ExitError); ok {
+				cmd.ExitCode = exit.ExitCode()
+			}
+		}
 		return err
 	}
 	code := <-cmd.Done
-	// cmd.closeOutput()
+	cmd.ExitCode = code
 	if code != 0 {
 		return fmt.Errorf("exit status %d", code)
 	}
@@ -163,7 +205,41 @@ func (inter *Interpreter) CmdRun(cmd *Cmd) error {
 	return inter.CmdWait(cmd)
 }
 
-// sets cmd.Stdout or cmd.Stderr for a ">" redirect node.
+// connects each cmd's stdout to the next cmd's stdin using os.Pipe.
+// we use os.Pipe directly rather than cmd.StdoutPipe so we control
+// when the write end closes — closeOutput handles that uniformly.
+func WirePipe(cmds []*Cmd) error {
+	for i := 0; i < len(cmds)-1; i++ {
+		r, w, err := os.Pipe()
+		if err != nil {
+			return err
+		}
+		cmds[i].Stdout = w
+		cmds[i+1].Stdin = r
+	}
+	return nil
+}
+
+// starts and waits for a pipeline, returning the exit status of the last command.
+func (inter *Interpreter) RunPipe(cmds []*Cmd) error {
+	if err := WirePipe(cmds); err != nil {
+		return err
+	}
+
+	for _, cmd := range cmds {
+		if err := inter.CmdStart(cmd); err != nil {
+			return err
+		}
+	}
+
+	var lastErr error
+	for _, cmd := range cmds {
+		lastErr = inter.CmdWait(cmd)
+	}
+	return lastErr
+}
+
+// ApplyOut sets cmd.Stdout or cmd.Stderr for a ">" redirect node.
 func (inter *Interpreter) ApplyOut(cmd *Cmd, kid *Node) error {
 	fd, target, err := inter.ResolveOutTarget(kid)
 	if err != nil {
@@ -247,7 +323,7 @@ func (inter *Interpreter) ApplyDupOut(cmd *Cmd, kid *Node) error {
 	return nil
 }
 
-// returns (fd, absolute path) from a > or >> node.
+// ResolveOutTarget returns (fd, absolute path) from a > or >> node.
 // kids are either [target] or [fd, target].
 func (inter *Interpreter) ResolveOutTarget(kid *Node) (int, string, error) {
 	fd := 1
@@ -295,7 +371,6 @@ func (inter *Interpreter) ResolveDupOut(kid *Node) (int, int, error) {
 	return srcFd, dstFd, nil
 }
 
-// expands a word token, handling globs.
 func (inter *Interpreter) ExpandWord(word string) ([]string, error) {
 	if !ContainsGlob(word) {
 		return []string{word}, nil

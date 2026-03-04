@@ -400,26 +400,21 @@ func TestBuiltinPwdRedirect(t *testing.T) {
 // --- builtin: cd ---
 
 func TestBuiltinCd(t *testing.T) {
-    dir := t.TempDir()
-    sub := filepath.Join(dir, "sub")
-    os.Mkdir(sub, 0755)
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	os.Mkdir(sub, 0755)
 
-    inter := NewInterpreter(dir)
-    tokens, err := Scan("cd sub")
-    if err != nil {
-        t.Fatalf("scan error: %v", err)
-    }
-    node, err := NewParser(tokens).Parse()
-    if err != nil {
-        t.Fatalf("parse error: %v", err)
-    }
-    if err := inter.Exec(node); err != nil {
-        t.Fatalf("unexpected error: %v", err)
-    }
-
-    if inter.Cwd != sub {
-        t.Errorf("want cwd %q, got %q", sub, inter.Cwd)
-    }
+	inter := NewInterpreter(dir)
+	inter.Stdout = os.Stdout
+	inter.Stderr = os.Stderr
+	tokens, _ := Scan("cd sub")
+	node, _ := NewParser(tokens).Parse()
+	if err := inter.Exec(node); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if inter.Cwd != sub {
+		t.Errorf("want cwd %q, got %q", sub, inter.Cwd)
+	}
 }
 
 func TestBuiltinCdAbsolute(t *testing.T) {
@@ -428,6 +423,8 @@ func TestBuiltinCdAbsolute(t *testing.T) {
 	os.Mkdir(sub, 0755)
 
 	inter := NewInterpreter(dir)
+	inter.Stdout = os.Stdout
+	inter.Stderr = os.Stderr
 	tokens, _ := Scan("cd " + sub)
 	node, _ := NewParser(tokens).Parse()
 	if err := inter.Exec(node); err != nil {
@@ -472,7 +469,7 @@ func TestBuiltinCdThenPwd(t *testing.T) {
 	outFile := filepath.Join(dir, "_stdout")
 	outF, _ := os.Create(outFile)
 	inter.Stdout = outF
-	inter.Stderr = inter.Stderr
+	inter.Stderr = os.Stderr
 
 	for _, src := range []string{"cd sub", "pwd"} {
 		tokens, _ := Scan(src)
@@ -486,5 +483,85 @@ func TestBuiltinCdThenPwd(t *testing.T) {
 	data, _ := os.ReadFile(outFile)
 	if !strings.Contains(string(data), sub) {
 		t.Errorf("want %q in pwd output after cd, got %q", sub, string(data))
+	}
+}
+
+// --- pipelines ---
+
+func TestPipeBasic(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "echo hello | cat")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "hello") {
+		t.Errorf("want 'hello' in stdout, got %q", stdout)
+	}
+}
+
+func TestPipeThreeStages(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "f.txt"), []byte("foo\nbar\nbaz\n"), 0644)
+	stdout, _, err := runStr(t, dir, "cat f.txt | grep ba | cat")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "bar") || !strings.Contains(stdout, "baz") {
+		t.Errorf("want 'bar' and 'baz', got %q", stdout)
+	}
+	if strings.Contains(stdout, "foo") {
+		t.Errorf("want 'foo' filtered out, got %q", stdout)
+	}
+}
+
+func TestPipeLastExitCode(t *testing.T) {
+	dir := t.TempDir()
+	_, _, err := runStr(t, dir, "echo hello | false")
+	if err == nil {
+		t.Fatal("want error from false at end of pipe, got nil")
+	}
+}
+
+func TestPipeMiddleFailureDoesNotStopLast(t *testing.T) {
+	dir := t.TempDir()
+	_, _, err := runStr(t, dir, "false | echo hello")
+	if err != nil {
+		t.Fatalf("last command succeeded, want nil error, got %v", err)
+	}
+}
+
+func TestPipeIntoRedirect(t *testing.T) {
+	dir := t.TempDir()
+	_, _, err := runStr(t, dir, "echo hello | cat > out.txt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "out.txt"))
+	if !strings.Contains(string(data), "hello") {
+		t.Errorf("want 'hello' in out.txt, got %q", string(data))
+	}
+}
+
+func TestPipeBuiltinLeft(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _, err := runStr(t, dir, "echo hello world | cat")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "hello world") {
+		t.Errorf("want 'hello world', got %q", stdout)
+	}
+}
+
+func TestPipeBuiltinRight(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	os.Mkdir(sub, 0755)
+	stdout, _, err := runStr(t, dir, "echo sub | cat")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "sub") {
+		t.Errorf("want 'sub' in output, got %q", stdout)
 	}
 }
