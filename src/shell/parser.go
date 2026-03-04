@@ -1,7 +1,8 @@
 // s -> orif
 // orif -> andif ("||" andif)*
-// andif -> elm ("&&" elm)*
-// elm -> redirect* (word | string) (word | string | redirect)*
+// andif -> pipes ("&&" pipes)*
+// pipes -> cmd ("|" cmd)*
+// cmd -> redirect* (word | string) (word | string | redirect)*
 
 // redirect -> out | dupout | in | append
 // out -> [fd] ">" (fd | word | string)
@@ -65,38 +66,80 @@ func (p *Parser) Parse() (*Node, error) {
 
 // orif -> andif ("||" andif)*
 func (p *Parser) ParseOrIf() (*Node, error) {
-	left, err := p.ParseAndIf()
+	first, err := p.ParseAndIf()
 	if err != nil {
 		return nil, err
 	}
 
-	for p.Peek().Type == TokenOrIf {
-		op := p.Consume()
-		right, err := p.ParseAndIf()
+	if p.Peek().Type != TokenOrIf {
+		return first, nil
+	}
+
+	node := &Node{Token: p.Consume(), Kids: []*Node{first}}
+	for {
+		child, err := p.ParseAndIf()
 		if err != nil {
 			return nil, err
 		}
-		left = &Node{Token: op, Kids: []*Node{left, right}}
+		node.Kids = append(node.Kids, child)
+		if p.Peek().Type != TokenOrIf {
+			break
+		}
+		p.Consume()
 	}
-	return left, nil
+	return node, nil
 }
 
-// andif -> cmd ("&&" cmd)*
+// andif -> pipeline ("&&" pipeline)*
 func (p *Parser) ParseAndIf() (*Node, error) {
-	left, err := p.ParseCmd()
+	first, err := p.ParsePipeline()
 	if err != nil {
 		return nil, err
 	}
 
-	for p.Peek().Type == TokenAndIf {
-		op := p.Consume()
-		right, err := p.ParseCmd()
+	if p.Peek().Type != TokenAndIf {
+		return first, nil
+	}
+
+	node := &Node{Token: p.Consume(), Kids: []*Node{first}}
+	for {
+		child, err := p.ParsePipeline()
 		if err != nil {
 			return nil, err
 		}
-		left = &Node{Token: op, Kids: []*Node{left, right}}
+		node.Kids = append(node.Kids, child)
+		if p.Peek().Type != TokenAndIf {
+			break
+		}
+		p.Consume()
 	}
-	return left, nil
+	return node, nil
+}
+
+// pipeline -> cmd ("|" cmd)*
+func (p *Parser) ParsePipeline() (*Node, error) {
+	first, err := p.ParseCmd()
+	if err != nil {
+		return nil, err
+	}
+
+	if p.Peek().Type != TokenPipe {
+		return first, nil
+	}
+
+	node := &Node{Token: p.Consume(), Kids: []*Node{first}}
+	for {
+		cmd, err := p.ParseCmd()
+		if err != nil {
+			return nil, err
+		}
+		node.Kids = append(node.Kids, cmd)
+		if p.Peek().Type != TokenPipe {
+			break
+		}
+		p.Consume()
+	}
+	return node, nil
 }
 
 // cmd -> redirect* (word|string) (word|string|redirect)*

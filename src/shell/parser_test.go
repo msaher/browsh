@@ -229,7 +229,6 @@ func TestParseOrIf(t *testing.T) {
 }
 
 func TestParseAndIfChain(t *testing.T) {
-	// a && b && c  — left-associative
 	node := mustParse(t, []Token{
 		tok(TokenWord, "a"),
 		tok(TokenAndIf, "&&"),
@@ -237,13 +236,13 @@ func TestParseAndIfChain(t *testing.T) {
 		tok(TokenAndIf, "&&"),
 		tok(TokenWord, "c"),
 	})
-	// outer && has [a&&b, c]
-	assertNode(t, node, TokenAndIf, 2)
-	assertNode(t, node.Kids[0], TokenAndIf, 2)
+	assertNode(t, node, TokenAndIf, 3)
+	assertNode(t, node.Kids[0], 0, 1)
+	assertNode(t, node.Kids[1], 0, 1)
+	assertNode(t, node.Kids[2], 0, 1)
 }
 
 func TestParseOrIfOverAndIf(t *testing.T) {
-	// a && b || c  — && binds tighter
 	node := mustParse(t, []Token{
 		tok(TokenWord, "a"),
 		tok(TokenAndIf, "&&"),
@@ -253,6 +252,46 @@ func TestParseOrIfOverAndIf(t *testing.T) {
 	})
 	assertNode(t, node, TokenOrIf, 2)
 	assertNode(t, node.Kids[0], TokenAndIf, 2)
+	assertNode(t, node.Kids[1], 0, 1)
+}
+
+func TestParseOrIfChain(t *testing.T) {
+	node := mustParse(t, []Token{
+		tok(TokenWord, "a"),
+		tok(TokenOrIf, "||"),
+		tok(TokenWord, "b"),
+		tok(TokenOrIf, "||"),
+		tok(TokenWord, "c"),
+	})
+	assertNode(t, node, TokenOrIf, 3)
+}
+
+func TestParsePipeline(t *testing.T) {
+	node := mustParse(t, []Token{
+		tok(TokenWord, "a"),
+		tok(TokenPipe, "|"),
+		tok(TokenWord, "b"),
+		tok(TokenPipe, "|"),
+		tok(TokenWord, "c"),
+	})
+	assertNode(t, node, TokenPipe, 3)
+	for _, kid := range node.Kids {
+		assertNode(t, kid, 0, 1)
+	}
+}
+
+func TestParsePipelineTwo(t *testing.T) {
+	// cat foo.txt | grep bar
+	node := mustParse(t, []Token{
+		tok(TokenWord, "cat"),
+		tok(TokenWord, "foo.txt"),
+		tok(TokenPipe, "|"),
+		tok(TokenWord, "grep"),
+		tok(TokenWord, "bar"),
+	})
+	assertNode(t, node, TokenPipe, 2)
+	assertNode(t, node.Kids[0], 0, 2) // cat + foo.txt
+	assertNode(t, node.Kids[1], 0, 2) // grep + bar
 }
 
 // --- errors ---
@@ -266,7 +305,6 @@ func TestParseErrorNoCommand(t *testing.T) {
 }
 
 func TestParseErrorFdBeforeIn(t *testing.T) {
-	// 2< input.txt  — fd before < is not valid
 	mustFail(t, []Token{
 		tok(TokenWord, "cmd"),
 		tok(TokenFd, "2"),
@@ -276,7 +314,6 @@ func TestParseErrorFdBeforeIn(t *testing.T) {
 }
 
 func TestParseErrorFdBeforeAppend(t *testing.T) {
-	// 2>> log.txt — fd before >> is not valid
 	mustFail(t, []Token{
 		tok(TokenWord, "cmd"),
 		tok(TokenFd, "2"),
@@ -286,7 +323,6 @@ func TestParseErrorFdBeforeAppend(t *testing.T) {
 }
 
 func TestParseErrorFdNotFollowedByRedirect(t *testing.T) {
-	// cmd 2 foo  — bare fd not followed by > or >&
 	mustFail(t, []Token{
 		tok(TokenWord, "cmd"),
 		tok(TokenFd, "2"),
@@ -295,7 +331,6 @@ func TestParseErrorFdNotFollowedByRedirect(t *testing.T) {
 }
 
 func TestParseErrorMissingRedirectTarget(t *testing.T) {
-	// echo >   (no target)
 	mustFail(t, []Token{
 		tok(TokenWord, "echo"),
 		tok(TokenOut, ">"),
@@ -303,7 +338,6 @@ func TestParseErrorMissingRedirectTarget(t *testing.T) {
 }
 
 func TestParseErrorDupOutNeedsFd(t *testing.T) {
-	// echo >& word  — >& requires an fd, not a word
 	mustFail(t, []Token{
 		tok(TokenWord, "echo"),
 		tok(TokenDupOut, ">&"),
@@ -312,7 +346,6 @@ func TestParseErrorDupOutNeedsFd(t *testing.T) {
 }
 
 func TestParseErrorTrailingJunk(t *testing.T) {
-	// echo || — rhs of || is missing
 	mustFail(t, []Token{
 		tok(TokenWord, "echo"),
 		tok(TokenOrIf, "||"),
