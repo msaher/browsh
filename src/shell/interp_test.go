@@ -335,6 +335,15 @@ func runStr(t *testing.T, dir, src string) (stdout, stderr string, err error) {
 	return string(outBytes), string(errBytes), err
 }
 
+func mustRunStr(t *testing.T, dir, s string) (string, string) {
+	t.Helper()
+	stdout, stderr, err := runStr(t, dir, s)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return stdout, stderr
+}
+
 // --- builtin: echo ---
 
 func TestBuiltinEcho(t *testing.T) {
@@ -677,5 +686,71 @@ func TestAndIfThenOrIf(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "b") {
 		t.Errorf("want 'b', got %q", stdout)
+	}
+}
+
+// --- tilde expansion ---
+
+func TestTildeAlone(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	stdout, _, err := runStr(t, dir, "echo ~")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, dir) {
+		t.Errorf("want %q, got %q", dir, stdout)
+	}
+}
+
+func TestTildeSlash(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	stdout, _, err := runStr(t, dir, "echo ~/foo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := dir + "/foo"
+	if !strings.Contains(stdout, want) {
+		t.Errorf("want %q, got %q", want, stdout)
+	}
+}
+
+func TestTildeCd(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	inter := NewInterpreter("/")
+	tokens, _ := Scan("cd ~")
+	node, _ := NewParser(tokens).Parse()
+	if err := inter.Exec(node); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if inter.Cwd != dir {
+		t.Errorf("want cwd %q, got %q", dir, inter.Cwd)
+	}
+}
+
+func TestTildeNoHome(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", "")
+	stdout, _, err := runStr(t, dir, "echo ~")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(stdout, dir) {
+		t.Errorf("with empty HOME, ~ should not expand to %q", dir)
+	}
+}
+
+func TestTildeInString(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	stdout, _, err := runStr(t, dir, `echo "~/foo"`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := dir + "/foo"
+	if !strings.Contains(stdout, want) {
+		t.Errorf("want %q, got %q", want, stdout)
 	}
 }
