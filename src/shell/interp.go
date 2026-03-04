@@ -118,7 +118,10 @@ func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 			cmd.Args = append(cmd.Args, expanded...)
 
 		case TokenString:
-			cmd.Args = append(cmd.Args, kid.Token.Content)
+			// skip quotes
+			content := kid.Token.Content
+			str := content[1:len(content)-1]
+			cmd.Args = append(cmd.Args, str)
 
 		case TokenOut:
 			if err := inter.ApplyOut(cmd, kid); err != nil {

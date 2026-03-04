@@ -99,7 +99,7 @@ func TestExecEcho(t *testing.T) {
 func TestExecStringArg(t *testing.T) {
 	stdout, _, err := run(t, []Token{
 		tok(TokenWord, "echo"),
-		tok(TokenString, "hello world"),
+		tok(TokenString, `"hello world"`),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
