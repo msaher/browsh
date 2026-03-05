@@ -140,8 +140,8 @@ func (s *Scanner) ScanWord() Token {
 		return s.MakeToken(TokenFd)
 	}
 
-	// :py {}
-	if w == ":py" {
+	// :lua {}
+	if w == ":lua" {
 		s.ExpectBlock = true
 	}
 

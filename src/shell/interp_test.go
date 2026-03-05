@@ -758,11 +758,12 @@ func TestTildeInString(t *testing.T) {
 
 // --- blocks ---
 
-func TestPyBlock(t *testing.T) {
+func TestBlock(t *testing.T) {
 	dir := t.TempDir()
-	stdout, _ := mustRunStr(t, dir, `:py {
-		print("hello")
+	stdout, _ := mustRunStr(t, dir, `:lua {
+		sh.print("hello")
 	}`)
+	t.Log(stdout)
 	if !strings.Contains(stdout, "hello") {
 		t.Errorf("want 'hello' in stdout, got %q", stdout)
 	}

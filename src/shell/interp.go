@@ -14,7 +14,7 @@ var Builtins = map[string]BuiltinFunc{
 	"cd":   builtinCd,
 	"pwd":  builtinPwd,
 	"echo": builtinEcho,
-	":py":  builtinPy,
+	":lua":  builtinLua,
 }
 
 type Cmd struct {

@@ -3,9 +3,11 @@ package shell
 import (
 	"fmt"
 	"os"
-	"os/exec"
+	"io"
 	"path/filepath"
 	"strings"
+
+	"github.com/yuin/gopher-lua"
 )
 
 func builtinEcho(inter *Interpreter, cmd *Cmd) {
@@ -61,43 +63,41 @@ func builtinCd(inter *Interpreter, cmd *Cmd) {
 	cmd.Done <- 0
 }
 
-func builtinPy(inter *Interpreter, cmd *Cmd) {
+func builtinLua(inter *Interpreter, cmd *Cmd) {
 	src := cmd.Args[1]
 	src = src[1:len(src)-1] // strip braces
-	src = Dedent(src) // python is whitespace sensitive
 
-	py := exec.Command("python")
-	py.Stdin = strings.NewReader(src)
-	py.Stdout = cmd.Stdout
-	py.Stderr = cmd.Stderr
-	py.Run()
-	cmd.Done <- py.ProcessState.ExitCode()
+	L := lua.NewState()
+	L.OpenLibs()
+	defer L.Close()
+	registerSh(L, cmd)
+
+	if err := L.DoString(src); err != nil {
+		fmt.Fprintln(cmd.Stderr, err)
+		cmd.Done <- 1
+		return
+	}
+	cmd.Done <- 0
 }
 
-func Dedent(src string) string {
-	lines := strings.Split(src, "\n")
+func registerSh(L *lua.LState, cmd *Cmd) {
+	sh := L.NewTable()
 
-	minIndent := -1
-	for _, line := range lines {
-		trimmed := strings.TrimLeft(line, " \t")
-		if trimmed == "" {
-			continue
+	sh.RawSetString("print", L.NewFunction(func(L *lua.LState) int {
+		n := L.GetTop()
+		parts := make([]string, n)
+		for i := 1; i <= n; i++ {
+			parts[i-1] = L.ToStringMeta(L.Get(i)).String()
 		}
-		indent := len(line) - len(trimmed)
-		if minIndent == -1 || indent < minIndent {
-			minIndent = indent
-		}
-	}
+		fmt.Fprintln(cmd.Stdout, strings.Join(parts, "\t"))
+		return 0
+	}))
 
-	if minIndent <= 0 {
-		return src
-	}
+	sh.RawSetString("write", L.NewFunction(func(L *lua.LState) int {
+		s := L.CheckString(1)
+		io.WriteString(cmd.Stdout, s)
+		return 0
+	}))
 
-	for i, line := range lines {
-		if len(line) >= minIndent {
-			lines[i] = line[minIndent:]
-		}
-	}
-
-	return strings.TrimSpace(strings.Join(lines, "\n"))
+	L.SetGlobal("sh", sh)
 }

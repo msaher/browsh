@@ -2,10 +2,10 @@
 // orif -> andif ("||" andif)*
 // andif -> pipes ("&&" pipes)*
 // pipes -> cmd ("|" cmd)*
-// pyblock -> :py block
+// luablock -> :lua block
 // cmd -> cmd1 | cmd2
 // cmd1 -> redirect* (word | string) (word | string | redirect)*
-// cmd2 -> redirect* :py block redirect*
+// cmd2 -> redirect* :lua block redirect*
 
 // redirect -> out | dupout | in | append
 // out -> [fd] ">" (fd | word | string)
@@ -49,7 +49,7 @@ func (p *Parser) Consume() Token {
 func (p *Parser) Expect(tt TokenType) (Token, error) {
 	t := p.Peek()
 	if t.Type != tt {
-		return t, fmt.Errorf("line %d: expected token %d, got %d (%q)", t.Line, tt, t.Type, t.Content)
+		return t, fmt.Errorf("line %d: expected token %s, got %s (%q)", t.Line, tt, t.Type, t.Content)
 	}
 	return p.Consume(), nil
 }
@@ -149,7 +149,7 @@ func (p *Parser) ParsePipeline() (*Node, error) {
 
 // cmd -> cmd1 | cmd2
 // cmd1 -> redirect* (word|string) (word|string|redirect)*
-// cmd2 -> redirect* :py block redirect*
+// cmd2 -> redirect* :lua block redirect*
 // the cmd node uses a zero token (no meaningful token of its own).
 func (p *Parser) ParseCmd() (*Node, error) {
 	cmd := &Node{}
@@ -169,7 +169,7 @@ func (p *Parser) ParseCmd() (*Node, error) {
 	cmd.Kids = append(cmd.Kids, &Node{Token: p.Consume()})
 
 	// cmd2 form
-	if t.Type == TokenWord && t.Content == ":py" {
+	if t.Type == TokenWord && t.Content == ":lua" {
 		block, err := p.Expect(TokenBlock)
 		if err != nil {
 			return nil, err
