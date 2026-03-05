@@ -2,7 +2,10 @@
 // orif -> andif ("||" andif)*
 // andif -> pipes ("&&" pipes)*
 // pipes -> cmd ("|" cmd)*
-// cmd -> redirect* (word | string) (word | string | redirect)*
+// pyblock -> :py block
+// cmd -> cmd1 | cmd2
+// cmd1 -> redirect* (word | string) (word | string | redirect)*
+// cmd2 -> redirect* :py block redirect*
 
 // redirect -> out | dupout | in | append
 // out -> [fd] ">" (fd | word | string)
@@ -142,7 +145,11 @@ func (p *Parser) ParsePipeline() (*Node, error) {
 	return node, nil
 }
 
-// cmd -> redirect* (word|string) (word|string|redirect)*
+
+
+// cmd -> cmd1 | cmd2
+// cmd1 -> redirect* (word|string) (word|string|redirect)*
+// cmd2 -> redirect* :py block redirect*
 // the cmd node uses a zero token (no meaningful token of its own).
 func (p *Parser) ParseCmd() (*Node, error) {
 	cmd := &Node{}
@@ -155,12 +162,32 @@ func (p *Parser) ParseCmd() (*Node, error) {
 		cmd.Kids = append(cmd.Kids, r)
 	}
 
-	if p.Peek().Type != TokenWord && p.Peek().Type != TokenString {
-		t := p.Peek()
+	t := p.Peek()
+	if t.Type != TokenWord && t.Type != TokenString {
 		return nil, fmt.Errorf("line %d: expected command word, got %q", t.Line, t.Content)
 	}
 	cmd.Kids = append(cmd.Kids, &Node{Token: p.Consume()})
 
+	// cmd2 form
+	if t.Type == TokenWord && t.Content == ":py" {
+		block, err := p.Expect(TokenBlock)
+		if err != nil {
+			return nil, err
+		}
+		cmd.Kids = append(cmd.Kids, &Node{block, nil})
+		return cmd, nil
+
+		for p.IsRedirectStart() {
+			r, err := p.ParseRedirect()
+			if err != nil {
+				return nil, err
+			}
+			cmd.Kids = append(cmd.Kids, r)
+		}
+		return cmd, nil
+	}
+
+	// cmd1 form
 	for {
 		switch p.Peek().Type {
 		case TokenWord, TokenString:
@@ -177,6 +204,7 @@ func (p *Parser) ParseCmd() (*Node, error) {
 			}
 		}
 	}
+
 }
 
 // returns true when the next token can begin a redirect.
