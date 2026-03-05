@@ -14,6 +14,7 @@ var Builtins = map[string]BuiltinFunc{
 	"cd":   builtinCd,
 	"pwd":  builtinPwd,
 	"echo": builtinEcho,
+	":py":  builtinPy,
 }
 
 type Cmd struct {
@@ -118,6 +119,9 @@ func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 				return nil, err
 			}
 			cmd.Args = append(cmd.Args, expanded...)
+
+		case TokenBlock:
+			cmd.Args = append(cmd.Args, kid.Token.Content)
 
 		case TokenString:
 			// skip quotes

@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -58,4 +59,45 @@ func builtinCd(inter *Interpreter, cmd *Cmd) {
 		inter.Cwd = dir
 	}
 	cmd.Done <- 0
+}
+
+func builtinPy(inter *Interpreter, cmd *Cmd) {
+	src := cmd.Args[1]
+	src = src[1:len(src)-1] // strip braces
+	src = Dedent(src) // python is whitespace sensitive
+
+	py := exec.Command("python")
+	py.Stdin = strings.NewReader(src)
+	py.Stdout = cmd.Stdout
+	py.Stderr = cmd.Stderr
+	py.Run()
+	cmd.Done <- py.ProcessState.ExitCode()
+}
+
+func Dedent(src string) string {
+	lines := strings.Split(src, "\n")
+
+	minIndent := -1
+	for _, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+		if trimmed == "" {
+			continue
+		}
+		indent := len(line) - len(trimmed)
+		if minIndent == -1 || indent < minIndent {
+			minIndent = indent
+		}
+	}
+
+	if minIndent <= 0 {
+		return src
+	}
+
+	for i, line := range lines {
+		if len(line) >= minIndent {
+			lines[i] = line[minIndent:]
+		}
+	}
+
+	return strings.TrimSpace(strings.Join(lines, "\n"))
 }

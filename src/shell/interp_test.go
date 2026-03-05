@@ -755,3 +755,16 @@ func TestTildeInString(t *testing.T) {
 		t.Errorf("want %q, got %q", want, stdout)
 	}
 }
+
+// --- blocks ---
+
+func TestPyBlock(t *testing.T) {
+	dir := t.TempDir()
+	stdout, _ := mustRunStr(t, dir, `:py {
+		print("hello")
+	}`)
+	if !strings.Contains(stdout, "hello") {
+		t.Errorf("want 'hello' in stdout, got %q", stdout)
+	}
+}
+
