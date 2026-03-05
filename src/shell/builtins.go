@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"io"
+	"bufio"
 	"path/filepath"
 	"strings"
 
@@ -70,17 +71,20 @@ func builtinLua(inter *Interpreter, cmd *Cmd) {
 	L := lua.NewState()
 	L.OpenLibs()
 	defer L.Close()
-	registerSh(L, cmd)
+	registerSh(L, inter, cmd)
 
 	if err := L.DoString(src); err != nil {
-		fmt.Fprintln(cmd.Stderr, err)
-		cmd.Done <- 1
+		// "exit" is caused sh.exit() which writes cmd.Done for us already
+		if err.Error() != "exit" {
+			fmt.Fprintln(cmd.Stderr, err)
+			cmd.Done <- 1
+		}
 		return
 	}
 	cmd.Done <- 0
 }
 
-func registerSh(L *lua.LState, cmd *Cmd) {
+func registerSh(L *lua.LState, inter *Interpreter, cmd *Cmd) {
 	sh := L.NewTable()
 
 	sh.RawSetString("print", L.NewFunction(func(L *lua.LState) int {
@@ -96,6 +100,40 @@ func registerSh(L *lua.LState, cmd *Cmd) {
 	sh.RawSetString("write", L.NewFunction(func(L *lua.LState) int {
 		s := L.CheckString(1)
 		io.WriteString(cmd.Stdout, s)
+		return 0
+	}))
+
+	sh.RawSetString("cwd", lua.LString(inter.Cwd))
+
+	env := L.NewTable()
+	for _, e := range os.Environ() {
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) == 2 {
+			env.RawSetString(parts[0], lua.LString(parts[1]))
+		}
+	}
+	sh.RawSetString("env", env)
+
+	reader := bufio.NewReader(cmd.Stdin)
+	sh.RawSetString("stdin", L.NewFunction(func(L *lua.LState) int {
+		line, err := reader.ReadString('\n')
+		line = strings.TrimRight(line, "\n")
+		if line != "" {
+			L.Push(lua.LString(line))
+			return 1
+		}
+		if err != nil {
+			L.Push(lua.LNil)
+			return 1
+		}
+		L.Push(lua.LNil)
+		return 1
+	}))
+
+	sh.RawSetString("exit", L.NewFunction(func(L *lua.LState) int {
+		code := L.OptInt(1, 0)
+		cmd.Done <- code
+		L.RaiseError("exit")
 		return 0
 	}))
 

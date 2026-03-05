@@ -769,3 +769,42 @@ func TestBlock(t *testing.T) {
 	}
 }
 
+func TestLua(t *testing.T) {
+
+	t.Run("cwd", func(t *testing.T) {
+		dir := t.TempDir()
+		stdout, _ := mustRunStr(t, dir, `:lua {
+			sh.print(sh.cwd)
+		}`)
+		if !strings.Contains(stdout, dir) {
+			t.Errorf("want %q in stdout, got %q", dir, stdout)
+		}
+	})
+
+	t.Run("stdin", func(t *testing.T) {
+		dir := t.TempDir()
+		stdout, _ := mustRunStr(t, dir, `printf "1\n2\n3" | :lua {
+			x = {}
+			for line in sh.stdin do
+				table.insert(x, line)
+			end
+			for i, v in ipairs(x) do
+				sh.write(v)
+			end
+		}`)
+		if stdout != "123" {
+			t.Errorf("want 123 in stdout, got %q", stdout)
+		}
+	})
+
+	t.Run("env", func(t *testing.T) {
+		t.Setenv("XYZ", "123")
+		stdout, _ := mustRunStr(t, t.TempDir(), `:lua {
+			sh.print(sh.env.XYZ)
+		}`)
+		if stdout != "123\n" {
+			t.Errorf("want 123 in stdout, got %q", stdout)
+		}
+	})
+
+}
