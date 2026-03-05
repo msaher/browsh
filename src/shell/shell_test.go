@@ -204,3 +204,33 @@ ls
 		}
 	}
 }
+
+func TestScanBlock(t *testing.T) {
+
+	src := `:py {
+		print("hello world")
+	}`
+	expected := []TokenType{
+		TokenWord, // :py
+		TokenBlock,
+		TokenEOF,
+	}
+
+	tokens, err := Scan(src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := tokenTypes(tokens)
+	if len(got) != len(expected) {
+		t.Fatalf("wrong number of tokens: got %d, want %d", len(got), len(expected))
+	}
+
+	for i, tok := range got {
+		if tok != expected[i] {
+			t.Errorf("token %d: got %v, want %v", i, tok, expected[i])
+		}
+	}
+
+
+}

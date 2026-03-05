@@ -18,6 +18,7 @@ type Scanner struct {
 	Current int
 	Line int
 	PreviousType TokenType
+	ExpectBlock bool
 }
 
 func NewScannar(src string) *Scanner {
@@ -139,7 +140,35 @@ func (s *Scanner) ScanWord() Token {
 		return s.MakeToken(TokenFd)
 	}
 
+	// :py {}
+	if w == ":py" {
+		s.ExpectBlock = true
+	}
+
 	return s.MakeToken(TokenWord)
+}
+
+func (s *Scanner) ScanBlock() Token {
+	c := s.Advance()
+	if c != '{' {
+		return s.Error("expected a block")
+	}
+
+	depth := 1
+	for depth != 0 && !s.IsAtEnd() {
+		c = s.Advance()
+		switch c {
+		case '\n': s.Line++
+		case '{': depth++
+		case '}': depth--
+		}
+	}
+
+	if depth != 0 {
+		return s.Error("unclosed block")
+	}
+
+	return s.MakeToken(TokenBlock)
 }
 
 func (s *Scanner) Next() Token {
@@ -148,6 +177,11 @@ func (s *Scanner) Next() Token {
 
 	if s.IsAtEnd() {
 		return s.MakeToken(TokenEOF)
+	}
+
+	if s.ExpectBlock {
+		s.ExpectBlock = false
+		return s.ScanBlock()
 	}
 
 	c := s.Advance()

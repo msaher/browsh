@@ -16,6 +16,7 @@ const (
 	TokenEOF
 	TokenAppend
 	TokenError
+	TokenBlock
 	
 )
 
@@ -45,6 +46,8 @@ func (ttype TokenType) String() string {
 		return "TokenAppend"
 	case TokenError:
 		return "TokenError"
+	case TokenBlock:
+		return "TokenBlock"
 	
 	default:
 		panic("unreachable")
