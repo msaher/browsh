@@ -171,6 +171,7 @@ func registerSh(L *lua.LState, inter *Interpreter, cmd *Cmd) {
 		value := L.CheckString(2)
 		keyValue := fmt.Sprintf("%s=%s", key, value)
 		inter.Env = append(inter.Env, keyValue)
+		_ = os.Setenv(key, value) // ignore error
 		return 0
 	}))
 
