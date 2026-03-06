@@ -26,14 +26,17 @@ type Cmd struct {
 
 type Interpreter struct {
 	Cwd    string
+	Env    []string
 	Stdin  *os.File
 	Stdout *os.File
 	Stderr *os.File
 }
 
 func NewInterpreter(cwd string) *Interpreter {
+
 	return &Interpreter{
 		Cwd:    cwd,
+		Env: 	os.Environ(),
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
@@ -105,6 +108,7 @@ func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 	cmd := &Cmd{
 		Cmd: exec.Cmd{
 			Dir:    inter.Cwd,
+			Env: 	inter.Env,
 			Stdin:  inter.Stdin,
 			Stdout: inter.Stdout,
 			Stderr: inter.Stderr,
