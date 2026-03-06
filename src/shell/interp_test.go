@@ -807,4 +807,14 @@ func TestLua(t *testing.T) {
 		}
 	})
 
+	t.Run("run", func(t *testing.T) {
+		stdout, _ := mustRunStr(t, t.TempDir(), `:lua {
+			out, code = sh.run("echo hi")
+			sh.write(out)
+		}`)
+		if stdout != "hi\n" {
+			t.Errorf("want hi in stdout, got %q", stdout)
+		}
+	})
+
 }

@@ -3,10 +3,12 @@ package shell
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"io"
 	"bufio"
 	"path/filepath"
 	"strings"
+	"bytes"
 
 	"github.com/yuin/gopher-lua"
 )
@@ -136,6 +138,35 @@ func registerSh(L *lua.LState, inter *Interpreter, cmd *Cmd) {
 		L.RaiseError("exit")
 		return 0
 	}))
+
+	sh.RawSetString("run", L.NewFunction(func(L *lua.LState) int {
+		cmdStr := L.CheckString(1)
+		env := inter.Env
+
+		if tbl := L.OptTable(2, nil); tbl != nil {
+			merged := make([]string, len(inter.Env))
+			copy(merged, inter.Env)
+			tbl.ForEach(func(k, v lua.LValue) {
+				merged = append(merged, k.String()+"="+v.String())
+			})
+			env = merged
+		}
+
+		var stdout, stderr bytes.Buffer
+		c := exec.Command("bash", "-c", cmdStr)
+		c.Dir = inter.Cwd
+		c.Env = env
+		c.Stdout = &stdout
+		c.Stderr = &stderr
+		fmt.Printf("%v\n", c.Env)
+		c.Run()
+
+		L.Push(lua.LString(stdout.String()))
+		L.Push(lua.LNumber(c.ProcessState.ExitCode()))
+		L.Push(lua.LString(stderr.String()))
+		return 3
+	}))
+
 
 	L.SetGlobal("sh", sh)
 }
