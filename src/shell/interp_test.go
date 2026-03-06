@@ -817,4 +817,14 @@ func TestLua(t *testing.T) {
 		}
 	})
 
+	t.Run("setenv", func(t *testing.T) {
+		stdout, _ := mustRunStr(t, t.TempDir(), `:lua {
+			sh.setenv("XYZ", "123")
+		} && env | tail -n 1`)
+		if !strings.Contains(stdout, "XYZ") {
+			t.Errorf("want XYZ in stdout, got %q", stdout)
+		}
+	})
+
+
 }

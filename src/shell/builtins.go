@@ -158,7 +158,6 @@ func registerSh(L *lua.LState, inter *Interpreter, cmd *Cmd) {
 		c.Env = env
 		c.Stdout = &stdout
 		c.Stderr = &stderr
-		fmt.Printf("%v\n", c.Env)
 		c.Run()
 
 		L.Push(lua.LString(stdout.String()))
@@ -167,6 +166,13 @@ func registerSh(L *lua.LState, inter *Interpreter, cmd *Cmd) {
 		return 3
 	}))
 
+	sh.RawSetString("setenv", L.NewFunction(func(L *lua.LState) int {
+		key := L.CheckString(1)
+		value := L.CheckString(2)
+		keyValue := fmt.Sprintf("%s=%s", key, value)
+		inter.Env = append(inter.Env, keyValue)
+		return 0
+	}))
 
 	L.SetGlobal("sh", sh)
 }
