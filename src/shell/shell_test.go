@@ -207,7 +207,7 @@ ls
 
 func TestScanBlock(t *testing.T) {
 
-	src := `:py {
+	src := `:lua {
 		print("hello world")
 	}`
 	expected := []TokenType{
