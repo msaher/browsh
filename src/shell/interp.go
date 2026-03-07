@@ -19,6 +19,7 @@ var Builtins = map[string]BuiltinFunc{
 
 type Cmd struct {
 	exec.Cmd
+	Id int
 	IsBuiltin bool
 	Done      chan int
 	ExitCode  int
@@ -30,6 +31,7 @@ type Interpreter struct {
 	Stdin  *os.File
 	Stdout *os.File
 	Stderr *os.File
+	LastCmdId int
 }
 
 func NewInterpreter(cwd string) *Interpreter {
@@ -105,6 +107,7 @@ func (inter *Interpreter) Exec(node *Node) error {
 
 // builds a Cmd from a cmd node, applying args and redirects.
 func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
+	inter.LastCmdId++
 	cmd := &Cmd{
 		Cmd: exec.Cmd{
 			Dir:    inter.Cwd,
@@ -113,6 +116,7 @@ func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 			Stdout: inter.Stdout,
 			Stderr: inter.Stderr,
 		},
+		Id: inter.LastCmdId,
 	}
 
 	for _, kid := range node.Kids {
