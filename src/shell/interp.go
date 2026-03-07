@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type BuiltinFunc func(inter *Interpreter, cmd *Cmd)
@@ -20,6 +21,9 @@ var Builtins = map[string]BuiltinFunc{
 type Cmd struct {
 	exec.Cmd
 	Id int
+	StartedAt time.Time
+	ExitedAt time.Time
+	// for builtins
 	IsBuiltin bool
 	Done      chan int
 	ExitCode  int
@@ -181,6 +185,7 @@ func (inter *Interpreter) ExecCmd(node *Node) error {
 
 // starts the command. external commands call cmd.Start; builtins run in a goroutine.
 func (inter *Interpreter) CmdStart(cmd *Cmd) error {
+	cmd.StartedAt = time.Now()
 	if !cmd.IsBuiltin {
 		return cmd.Start()
 	}
@@ -198,6 +203,7 @@ func (inter *Interpreter) CmdStart(cmd *Cmd) error {
 func (inter *Interpreter) CmdWait(cmd *Cmd) error {
 	if !cmd.IsBuiltin {
 		err := cmd.Wait()
+		cmd.ExitedAt = time.Now()
 		closeOutput(inter, cmd)
 		if err != nil {
 			if exit, ok := err.(*exec.ExitError); ok {
@@ -207,6 +213,7 @@ func (inter *Interpreter) CmdWait(cmd *Cmd) error {
 		return err
 	}
 	code := <-cmd.Done
+	cmd.ExitedAt = time.Now()
 	cmd.ExitCode = code
 	if code != 0 {
 		return fmt.Errorf("exit status %d", code)
