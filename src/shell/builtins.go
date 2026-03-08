@@ -13,18 +13,18 @@ import (
 	"github.com/yuin/gopher-lua"
 )
 
-func builtinEcho(inter *Interpreter, cmd *Cmd) {
+func builtinEcho(inter *Interpreter, cmd *Cmd, stdio Stdio) {
 	out := strings.Join(cmd.Args[1:], " ")
 	fmt.Fprintln(cmd.Stdout, out)
 	cmd.Done <- 0
 }
 
-func builtinPwd(inter *Interpreter, cmd *Cmd) {
+func builtinPwd(inter *Interpreter, cmd *Cmd, stdio Stdio) {
 	fmt.Fprintln(cmd.Stdout, inter.Cwd)
 	cmd.Done <- 0
 }
 
-func builtinCd(inter *Interpreter, cmd *Cmd) {
+func builtinCd(inter *Interpreter, cmd *Cmd, stdio Stdio) {
 	var dir string
 	switch len(cmd.Args) {
 	case 1:
@@ -60,13 +60,13 @@ func builtinCd(inter *Interpreter, cmd *Cmd) {
 	}
 
 	// dont change unless we're not in a pipeline
-	if cmd.Stdout == inter.Stdout {
+	if cmd.Stdout == stdio.Stdout {
 		inter.Cwd = dir
 	}
 	cmd.Done <- 0
 }
 
-func builtinLua(inter *Interpreter, cmd *Cmd) {
+func builtinLua(inter *Interpreter, cmd *Cmd, stdio Stdio) {
 	src := cmd.Args[1]
 	src = src[1:len(src)-1] // strip braces
 

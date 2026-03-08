@@ -26,8 +26,10 @@ func run(t *testing.T, tokens []Token) (stdout, stderr string, err error) {
 	}
 
 	inter := NewInterpreter(dir)
-	inter.Stdout = outF
-	inter.Stderr = errF
+	stdio := Stdio {
+		Stdout: outF,
+		Stderr: errF,
+	}
 
 	tokens = append(tokens, tok(TokenEOF, ""))
 	node, parseErr := NewParser(tokens).Parse()
@@ -35,7 +37,7 @@ func run(t *testing.T, tokens []Token) (stdout, stderr string, err error) {
 		t.Fatalf("parse error: %v", parseErr)
 	}
 
-	err = inter.Exec(node)
+	err = inter.Exec(node, stdio)
 
 	outF.Close()
 	errF.Close()
@@ -62,8 +64,10 @@ func runInDir(t *testing.T, dir string, tokens []Token) (stdout, stderr string, 
 	}
 
 	inter := NewInterpreter(dir)
-	inter.Stdout = outF
-	inter.Stderr = errF
+	stdio := Stdio {
+		Stdout: outF,
+		Stderr: errF,
+	}
 
 	tokens = append(tokens, tok(TokenEOF, ""))
 	node, parseErr := NewParser(tokens).Parse()
@@ -71,7 +75,7 @@ func runInDir(t *testing.T, dir string, tokens []Token) (stdout, stderr string, 
 		t.Fatalf("parse error: %v", parseErr)
 	}
 
-	err = inter.Exec(node)
+	err = inter.Exec(node, stdio)
 
 	outF.Close()
 	errF.Close()
@@ -322,10 +326,11 @@ func runStr(t *testing.T, dir, src string) (stdout, stderr string, err error) {
 	}
 
 	inter := NewInterpreter(dir)
-	inter.Stdout = outF
-	inter.Stderr = errF
-
-	err = inter.Exec(node)
+	stdio := Stdio {
+		Stdout: outF,
+		Stderr: errF,
+	}
+	err = inter.Exec(node, stdio)
 
 	outF.Close()
 	errF.Close()
@@ -414,11 +419,13 @@ func TestBuiltinCd(t *testing.T) {
 	os.Mkdir(sub, 0755)
 
 	inter := NewInterpreter(dir)
-	inter.Stdout = os.Stdout
-	inter.Stderr = os.Stderr
+	stdio := Stdio {
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
 	tokens, _ := Scan("cd sub")
 	node, _ := NewParser(tokens).Parse()
-	if err := inter.Exec(node); err != nil {
+	if err := inter.Exec(node, stdio); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if inter.Cwd != sub {
@@ -432,11 +439,10 @@ func TestBuiltinCdAbsolute(t *testing.T) {
 	os.Mkdir(sub, 0755)
 
 	inter := NewInterpreter(dir)
-	inter.Stdout = os.Stdout
-	inter.Stderr = os.Stderr
+	stdio := Stdio{Stdout: os.Stdout, Stderr: os.Stderr}
 	tokens, _ := Scan("cd " + sub)
 	node, _ := NewParser(tokens).Parse()
-	if err := inter.Exec(node); err != nil {
+	if err := inter.Exec(node, stdio); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if inter.Cwd != sub {
@@ -477,13 +483,11 @@ func TestBuiltinCdThenPwd(t *testing.T) {
 
 	outFile := filepath.Join(dir, "_stdout")
 	outF, _ := os.Create(outFile)
-	inter.Stdout = outF
-	inter.Stderr = os.Stderr
-
+	stdio := Stdio{Stdout: outF, Stderr: os.Stderr}
 	for _, src := range []string{"cd sub", "pwd"} {
 		tokens, _ := Scan(src)
 		node, _ := NewParser(tokens).Parse()
-		if err := inter.Exec(node); err != nil {
+		if err := inter.Exec(node, stdio); err != nil {
 			t.Fatalf("%q: unexpected error: %v", src, err)
 		}
 	}
@@ -722,7 +726,7 @@ func TestTildeCd(t *testing.T) {
 	inter := NewInterpreter("/")
 	tokens, _ := Scan("cd ~")
 	node, _ := NewParser(tokens).Parse()
-	if err := inter.Exec(node); err != nil {
+	if err := inter.Exec(node, Stdio{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if inter.Cwd != dir {

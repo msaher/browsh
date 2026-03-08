@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -10,7 +11,7 @@ import (
 	"time"
 )
 
-type BuiltinFunc func(inter *Interpreter, cmd *Cmd)
+type BuiltinFunc func(inter *Interpreter, cmd *Cmd, stdio Stdio)
 
 var Builtins = map[string]BuiltinFunc{
 	"cd":   builtinCd,
@@ -30,12 +31,23 @@ type Cmd struct {
 	ExitCode  int
 }
 
+type Stdio struct {
+	Stdin io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+func NewStdio() Stdio {
+	return Stdio {
+		Stdin: os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+}
+
 type Interpreter struct {
 	Cwd    string
 	Env    []string
-	Stdin  *os.File
-	Stdout *os.File
-	Stderr *os.File
 	LastCmdId int
 	CmdTable map[int]*Cmd
 }
@@ -45,18 +57,15 @@ func NewInterpreter(cwd string) *Interpreter {
 	return &Interpreter{
 		Cwd:    cwd,
 		Env: 	os.Environ(),
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
 		CmdTable: make(map[int]*Cmd),
 	}
 }
 
 // closes cmd's stdout and stderr if they are files that don't belong to the
 // interpreter's own streams. handles both redirect files and pipe write ends.
-func closeOutput(inter *Interpreter, cmd *Cmd) {
+func closeOutput(inter *Interpreter, cmd *Cmd, stdio Stdio) {
 	if f, ok := cmd.Stdout.(*os.File); ok && f != nil {
-		if f != inter.Stdout && f != inter.Stderr {
+		if f != stdio.Stdout && f != stdio.Stderr {
 			f.Close()
 		}
 	}
@@ -66,17 +75,17 @@ func closeOutput(inter *Interpreter, cmd *Cmd) {
 	}
 
 	if f, ok := cmd.Stderr.(*os.File); ok && f != nil {
-		if f != inter.Stdout && f != inter.Stderr {
+		if f != stdio.Stdout && f != stdio.Stderr {
 			f.Close()
 		}
 	}
 }
 
-func (inter *Interpreter) Exec(node *Node) error {
+func (inter *Interpreter) Exec(node *Node, stdio Stdio) error {
 	switch node.Token.Type {
 	case TokenAndIf:
 		for _, kid := range node.Kids {
-			if err := inter.Exec(kid); err != nil {
+			if err := inter.Exec(kid, stdio); err != nil {
 				return err
 			}
 		}
@@ -85,7 +94,7 @@ func (inter *Interpreter) Exec(node *Node) error {
 	case TokenOrIf:
 		var err error
 		for _, kid := range node.Kids {
-			err = inter.Exec(kid)
+			err = inter.Exec(kid, stdio)
 			if err == nil {
 				return nil
 			}
@@ -95,7 +104,7 @@ func (inter *Interpreter) Exec(node *Node) error {
 	case TokenPipe:
 		var cmds []*Cmd
 		for _, kid := range node.Kids {
-			cmd, err := inter.BuildCmd(kid)
+			cmd, err := inter.BuildCmd(kid, stdio)
 			if err != nil {
 				return err
 			}
@@ -105,15 +114,15 @@ func (inter *Interpreter) Exec(node *Node) error {
 		if len(cmds) >= 1 {
 			inter.RegisterCmd(cmds[0])
 		}
-		return inter.RunPipe(cmds)
+		return inter.RunPipe(cmds, stdio)
 
 	default:
-		cmd, err := inter.BuildCmd(node)
+		cmd, err := inter.BuildCmd(node, stdio)
 		if err != nil {
 			return err
 		}
 		inter.RegisterCmd(cmd)
-		return inter.CmdRun(cmd)
+		return inter.CmdRun(cmd, stdio)
 	}
 }
 
@@ -124,21 +133,21 @@ func (inter *Interpreter) RegisterCmd(cmd *Cmd) {
 	inter.CmdTable[cmd.Id] = cmd
 }
 
-func (inter *Interpreter) NewCmd() *Cmd {
+func (inter *Interpreter) NewCmd(stdio Stdio) *Cmd {
 	return &Cmd{
 		Cmd: exec.Cmd{
 			Dir:    inter.Cwd,
 			Env: 	inter.Env,
-			Stdin:  inter.Stdin,
-			Stdout: inter.Stdout,
-			Stderr: inter.Stderr,
+			Stdin:  stdio.Stdin,
+			Stdout: stdio.Stdout,
+			Stderr: stdio.Stderr,
 		},
 	}
 }
 
 // builds a Cmd from a cmd node, applying args and redirects.
-func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
-	cmd := inter.NewCmd()
+func (inter *Interpreter) BuildCmd(node *Node, stdio Stdio) (*Cmd, error) {
+	cmd := inter.NewCmd(stdio)
 	for _, kid := range node.Kids {
 		switch kid.Token.Type {
 		case TokenWord:
@@ -173,7 +182,7 @@ func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 			}
 
 		case TokenDupOut:
-			if err := inter.ApplyDupOut(cmd, kid); err != nil {
+			if err := inter.ApplyDupOut(cmd, kid, stdio); err != nil {
 				return nil, err
 			}
 		}
@@ -192,7 +201,7 @@ func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 }
 
 // starts the command. external commands call cmd.Start; builtins run in a goroutine.
-func (inter *Interpreter) CmdStart(cmd *Cmd) error {
+func (inter *Interpreter) CmdStart(cmd *Cmd, stdio Stdio) error {
 	cmd.StartedAt = time.Now()
 	if !cmd.IsBuiltin {
 		return cmd.Start()
@@ -200,19 +209,19 @@ func (inter *Interpreter) CmdStart(cmd *Cmd) error {
 	fn := Builtins[cmd.Args[0]]
 	cmd.Done = make(chan int, 1)
 	go func() {
-		fn(inter, cmd)
-		closeOutput(inter, cmd)
+		fn(inter, cmd, stdio)
+		closeOutput(inter, cmd, stdio)
 		close(cmd.Done)
 	}()
 	return nil
 }
 
 // waits for the command to finish, populates cmd.ExitCode, and returns any error.
-func (inter *Interpreter) CmdWait(cmd *Cmd) error {
+func (inter *Interpreter) CmdWait(cmd *Cmd, stdio Stdio) error {
 	if !cmd.IsBuiltin {
 		err := cmd.Wait()
 		cmd.ExitedAt = time.Now()
-		closeOutput(inter, cmd)
+		closeOutput(inter, cmd, stdio)
 		if err != nil {
 			if exit, ok := err.(*exec.ExitError); ok {
 				cmd.ExitCode = exit.ExitCode()
@@ -230,11 +239,11 @@ func (inter *Interpreter) CmdWait(cmd *Cmd) error {
 }
 
 // runs the command to completion.
-func (inter *Interpreter) CmdRun(cmd *Cmd) error {
-	if err := inter.CmdStart(cmd); err != nil {
+func (inter *Interpreter) CmdRun(cmd *Cmd, stdio Stdio) error {
+	if err := inter.CmdStart(cmd, stdio); err != nil {
 		return err
 	}
-	return inter.CmdWait(cmd)
+	return inter.CmdWait(cmd, stdio)
 }
 
 // connects each cmd's stdout to the next cmd's stdin using os.Pipe.
@@ -253,7 +262,7 @@ func WirePipe(cmds []*Cmd) error {
 }
 
 // starts and waits for a pipeline, returning the exit status of the last command.
-func (inter *Interpreter) RunPipe(cmds []*Cmd) error {
+func (inter *Interpreter) RunPipe(cmds []*Cmd, stdio Stdio) error {
 	if err := WirePipe(cmds); err != nil {
 		return err
 	}
@@ -261,20 +270,20 @@ func (inter *Interpreter) RunPipe(cmds []*Cmd) error {
 	// TODO: what about builtins?
 	// first command creates a process group
 	cmds[0].SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := inter.CmdStart(cmds[0]); err != nil {
+	if err := inter.CmdStart(cmds[0], stdio); err != nil {
 		return err
 	}
 	pgid := cmds[0].SysProcAttr.Pgid
 	for _, cmd := range cmds[1:] {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: pgid}
-		if err := inter.CmdStart(cmd); err != nil {
+		if err := inter.CmdStart(cmd, stdio); err != nil {
 			return err
 		}
 	}
 
 	var lastErr error
 	for _, cmd := range cmds {
-		lastErr = inter.CmdWait(cmd)
+		lastErr = inter.CmdWait(cmd, stdio)
 	}
 	return lastErr
 }
@@ -330,24 +339,24 @@ func (inter *Interpreter) ApplyIn(cmd *Cmd, kid *Node) error {
 }
 
 // wires one of cmd's streams to another for a ">&" node.
-func (inter *Interpreter) ApplyDupOut(cmd *Cmd, kid *Node) error {
+func (inter *Interpreter) ApplyDupOut(cmd *Cmd, kid *Node, stdio Stdio) error {
 	srcFd, dstFd, err := inter.ResolveDupOut(kid)
 	if err != nil {
 		return err
 	}
-	var dst *os.File
+	var dst io.Writer
 	switch dstFd {
 	case 1:
 		if f, ok := cmd.Stdout.(*os.File); ok {
 			dst = f
 		} else {
-			dst = inter.Stdout
+			dst = stdio.Stdout
 		}
 	case 2:
 		if f, ok := cmd.Stderr.(*os.File); ok {
 			dst = f
 		} else {
-			dst = inter.Stderr
+			dst = stdio.Stderr
 		}
 	default:
 		return fmt.Errorf("unsupported dup target fd %d", dstFd)
