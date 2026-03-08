@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"syscall"
 	"strings"
 	"time"
 )
@@ -36,6 +37,7 @@ type Interpreter struct {
 	Stdout *os.File
 	Stderr *os.File
 	LastCmdId int
+	CmdTable map[int]*Cmd
 }
 
 func NewInterpreter(cwd string) *Interpreter {
@@ -46,6 +48,7 @@ func NewInterpreter(cwd string) *Interpreter {
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
+		CmdTable: make(map[int]*Cmd),
 	}
 }
 
@@ -98,6 +101,10 @@ func (inter *Interpreter) Exec(node *Node) error {
 			}
 			cmds = append(cmds, cmd)
 		}
+		//  only the first cmd is registered
+		if len(cmds) >= 1 {
+			inter.RegisterCmd(cmds[0])
+		}
 		return inter.RunPipe(cmds)
 
 	default:
@@ -105,14 +112,20 @@ func (inter *Interpreter) Exec(node *Node) error {
 		if err != nil {
 			return err
 		}
+		inter.RegisterCmd(cmd)
 		return inter.CmdRun(cmd)
 	}
 }
 
-// builds a Cmd from a cmd node, applying args and redirects.
-func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
+// TODO: add mutex
+func (inter *Interpreter) RegisterCmd(cmd *Cmd) {
+	cmd.Id = inter.LastCmdId
 	inter.LastCmdId++
-	cmd := &Cmd{
+	inter.CmdTable[cmd.Id] = cmd
+}
+
+func (inter *Interpreter) NewCmd() *Cmd {
+	return &Cmd{
 		Cmd: exec.Cmd{
 			Dir:    inter.Cwd,
 			Env: 	inter.Env,
@@ -120,9 +133,12 @@ func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 			Stdout: inter.Stdout,
 			Stderr: inter.Stderr,
 		},
-		Id: inter.LastCmdId,
 	}
+}
 
+// builds a Cmd from a cmd node, applying args and redirects.
+func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
+	cmd := inter.NewCmd()
 	for _, kid := range node.Kids {
 		switch kid.Token.Type {
 		case TokenWord:
@@ -180,6 +196,7 @@ func (inter *Interpreter) ExecCmd(node *Node) error {
 	if err != nil {
 		return err
 	}
+	inter.RegisterCmd(cmd)
 	return inter.CmdRun(cmd)
 }
 
@@ -250,7 +267,15 @@ func (inter *Interpreter) RunPipe(cmds []*Cmd) error {
 		return err
 	}
 
-	for _, cmd := range cmds {
+	// TODO: what about builtins?
+	// first command creates a process group
+	cmds[0].SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := inter.CmdStart(cmds[0]); err != nil {
+		return err
+	}
+	pgid := cmds[0].SysProcAttr.Pgid
+	for _, cmd := range cmds[1:] {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: pgid}
 		if err := inter.CmdStart(cmd); err != nil {
 			return err
 		}
