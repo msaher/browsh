@@ -191,15 +191,6 @@ func (inter *Interpreter) BuildCmd(node *Node) (*Cmd, error) {
 	return cmd, nil
 }
 
-func (inter *Interpreter) ExecCmd(node *Node) error {
-	cmd, err := inter.BuildCmd(node)
-	if err != nil {
-		return err
-	}
-	inter.RegisterCmd(cmd)
-	return inter.CmdRun(cmd)
-}
-
 // starts the command. external commands call cmd.Start; builtins run in a goroutine.
 func (inter *Interpreter) CmdStart(cmd *Cmd) error {
 	cmd.StartedAt = time.Now()
