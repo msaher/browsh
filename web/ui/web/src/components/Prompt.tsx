@@ -1,4 +1,4 @@
-import { createSignal } from 'solid-js';
+import { createSignal, onMount } from 'solid-js';
 import './Prompt.css';
 
 interface Props {
@@ -9,6 +9,11 @@ export default function Prompt(props: Props) {
   const [src, setSrc] = createSignal('');
   const [focused, setFocused] = createSignal(false);
   let textareaRef: HTMLTextAreaElement | undefined;
+
+  onMount(() => {
+    if (!textareaRef) return
+      textareaRef.focus()
+  })
 
   function resize() {
     if (!textareaRef) return;

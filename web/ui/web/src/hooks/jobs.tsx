@@ -1,5 +1,10 @@
 import * as config from '../config'
 
+interface Job {
+  id: number
+  ws: WebSocket
+}
+
 // TODO: handle errors
 
 export async function registerJob(src: string) {
@@ -12,7 +17,7 @@ export async function registerJob(src: string) {
   return data.id
 }
 
-export async function startJob(id: number) {
+export async function startJob(id: number, onmessage: (event: MessageEvent) => void) {
   const ws = new WebSocket(`${config.WEBSOCKET_URL}/job/${id}/ws`);
   ws.onopen = async () => {
     console.log("WebSocket connected");
@@ -27,23 +32,14 @@ export async function startJob(id: number) {
     console.error("WebSocket error:", err);
   };
 
-  ws.onmessage = async (event: MessageEvent) => {
-    console.log(event.data)
-  }
+  ws.onmessage = onmessage
 
   return ws
 }
 
-export async function registerAndStartJob(src: string) {
+export async function registerAndStartJob(src: string, onmessage: (e: MessageEvent) => void) {
   const id = await registerJob(src)
-  const ws = await startJob(id)
-  return ws
+  const ws = await startJob(id, onmessage)
+  const job = {id, ws}
+  return job
 }
-
-// class Job {
-//   ws: WebSocket
-//
-//   constructor(src: string) {
-//     this.src = src
-//   }
-// }

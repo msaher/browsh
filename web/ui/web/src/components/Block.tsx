@@ -7,12 +7,20 @@ export interface BlockProps {
 }
 
 export default function Block(props: BlockProps) {
+  let outputRef: HTMLDivElement | undefined;
+
+  function onmessage(event: MessageEvent) {
+    if (!outputRef) return
+    const text = JSON.parse(event.data);
+    outputRef.innerHTML += text.data;
+    outputRef.scrollTop = outputRef.scrollHeight;
+  }
 
   onMount(async () => {
-    const ws = jobs.registerAndStartJob(props.src)
+    const job = jobs.registerAndStartJob(props.src, onmessage)
   })
 
   return (
-    <div>{props.src}</div>
+    <div ref={el => (outputRef = el)}></div>
   )
 }
