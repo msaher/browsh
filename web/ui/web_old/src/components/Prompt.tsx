@@ -4,12 +4,8 @@ import { For, Show } from "solid-js"
 import { Output } from "./Output"
 import { CompletionList } from './CompletionList'
 import type { Component } from 'solid-js';
-import * as cmds from '../hooks/cmds'
+import * as jobs from '../hooks/jobs'
 import * as cmp from '../hooks/cmp'
-
-function parseInput(c: string): string[] {
-  return c.match(/(?:[^\s"]+|"[^"]*")+/g)?.map(a => a.replace(/"/g, "")) || [];
-};
 
 function appendOutput(text: string, outputRef: HTMLDivElement | undefined) {
   if (!outputRef) return
@@ -37,12 +33,11 @@ export const Prompt: Component<{
   async function onEnter() {
     const input = inputRef!
     input.disabled = true;
-    const args = input.value;
-    const argv = parseInput(args);
+    const srd = input.value;
 
     // TODO: handle error?
-    const cmdId = await cmds.register(argv)
-    startCmd(cmdId, args, async (event: MessageEvent) => {
+    const id = await jobs.register(src)
+    startCmd(id, args, async (event: MessageEvent) => {
       const text = await event.data.text()
       appendOutput(text, outputRef)
     })

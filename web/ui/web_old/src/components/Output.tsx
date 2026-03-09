@@ -1,7 +1,7 @@
 import './Output.css'
 import type { Component } from 'solid-js';
 import { onCleanup, createSignal, createEffect} from "solid-js";
-import * as cmds from "../hooks/cmds"
+import * as jobs from "../hooks/jobs"
 
 const formatDuration = (start: Date, end?: Date): string => {
   const endTime = end || new Date();
@@ -50,33 +50,33 @@ const ResumeIcon = () => (
 
 // TODO: rename. I don't like the name output
 export const Output: Component<{
-  cmd: cmds.Cmd,
+  job: jobs.Job,
   togglePause: () => void,
   setRef?: (el: HTMLDivElement) => void,
 }> = (props) => {
   let outputRef: HTMLDivElement | undefined;
 
-  const getDuration = (): string => {
-    if (!props.cmd.metadata.startedAt) return '';
-    if (props.cmd.metadata.status === 'exited' && props.cmd.metadata.exitedAt) {
-      // finished - show final duration
-      return formatDuration(props.cmd.metadata.startedAt, props.cmd.metadata.exitedAt);
-    } else {
-      // running - show live counter
-      return formatDuration(props.cmd.metadata.startedAt, new Date(props.cmd.metadata.startedAt.getTime() + timeElapsed()));
-    }
-  };
+  // const getDuration = (): string => {
+  //   if (!props.cmd.metadata.startedAt) return '';
+  //   if (props.cmd.metadata.status === 'exited' && props.cmd.metadata.exitedAt) {
+  //     // finished - show final duration
+  //     return formatDuration(props.cmd.metadata.startedAt, props.cmd.metadata.exitedAt);
+  //   } else {
+  //     // running - show live counter
+  //     return formatDuration(props.cmd.metadata.startedAt, new Date(props.cmd.metadata.startedAt.getTime() + timeElapsed()));
+  //   }
+  // };
 
   // for non STOP/CONT signals
-  const handleSignal = async (signal: cmds.CmdSignal) => {
-    if (!props.cmd.metadata.pid) return;
-    try {
-      await cmds.signal(props.cmd, signal)
-    } catch (err) {
-      // TODO: handle error
-      console.error('Failed to send signal:', err);
-    }
-  };
+  // const handleSignal = async (signal: cmds.CmdSignal) => {
+  //   if (!props.cmd.metadata.pid) return;
+  //   try {
+  //     await cmds.signal(props.cmd, signal)
+  //   } catch (err) {
+  //     // TODO: handle error
+  //     console.error('Failed to send signal:', err);
+  //   }
+  // };
 
   // reset pause state when process exits
   // createEffect(() => {
