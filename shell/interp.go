@@ -61,10 +61,17 @@ func NewInterpreter(cwd string) *Interpreter {
 	}
 }
 
-// closes cmd's stdout and stderr if they are files that don't belong to the
-// interpreter's own streams. handles both redirect files and pipe write ends.
-func closeOutput(inter *Interpreter, cmd *Cmd, stdio Stdio) {
-	return
+func closeOutput(cmd *Cmd, stdio Stdio) {
+    if cmd.Stdout != stdio.Stdout {
+        if c, ok := cmd.Stdout.(io.Closer); ok {
+            c.Close()
+        }
+    }
+    if cmd.Stderr != stdio.Stderr && cmd.Stderr != cmd.Stdout {
+        if c, ok := cmd.Stderr.(io.Closer); ok {
+            c.Close()
+        }
+    }
 }
 
 func (inter *Interpreter) Exec(node *Node, stdio Stdio) error {
@@ -196,7 +203,7 @@ func (inter *Interpreter) CmdStart(cmd *Cmd, stdio Stdio) error {
 	cmd.Done = make(chan int, 1)
 	go func() {
 		fn(inter, cmd, stdio)
-		closeOutput(inter, cmd, stdio)
+		closeOutput(cmd, stdio)
 		close(cmd.Done)
 	}()
 	return nil
@@ -207,7 +214,7 @@ func (inter *Interpreter) CmdWait(cmd *Cmd, stdio Stdio) error {
 	if !cmd.IsBuiltin {
 		err := cmd.Wait()
 		cmd.ExitedAt = time.Now()
-		closeOutput(inter, cmd, stdio)
+		closeOutput(cmd, stdio)
 		if err != nil {
 			if exit, ok := err.(*exec.ExitError); ok {
 				cmd.ExitCode = exit.ExitCode()
