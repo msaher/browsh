@@ -13,7 +13,6 @@ type StreamType string
 const (
 	StreamStdout StreamType = "stdout"
 	StreamStderr StreamType = "stderr"
-	StreamStdin  StreamType = "stdin"
 )
 
 type WsMessage struct {
