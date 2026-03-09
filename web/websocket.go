@@ -2,8 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"io"
+	"os"
 	"sync"
-	// "github.com/msaher/browsh/shell"
 
 	"github.com/gorilla/websocket"
 )
@@ -27,30 +28,56 @@ type WsWriter struct {
 }
 
 func (w *WsWriter) Write(p []byte) (int, error) {
-	msg, _ := json.Marshal(WsMessage{Stream: w.Stream, Data: string(p)})
 	w.Mu.Lock()
-	err := w.Conn.WriteMessage(websocket.TextMessage, msg)
-	w.Mu.Unlock()
-	return len(p), err
-}
-
-type WsReader struct {
-	Conn *websocket.Conn
-}
-
-func (r *WsReader) Read(p []byte) (int, error) {
-	_, msg, err := r.Conn.ReadMessage()
+	defer w.Mu.Unlock()
+	writer, err := w.Conn.NextWriter(websocket.TextMessage)
 	if err != nil {
 		return 0, err
 	}
-	n := copy(p, msg)
-	return n, nil
+	msg, _ := json.Marshal(WsMessage{Stream: w.Stream, Data: string(p)})
+	writer.Write(msg)
+	writer.Close()
+	return len(p), nil
 }
 
-func NewWsStdio(conn *websocket.Conn) (stdin *WsReader, stdout, stderr *WsWriter) {
+func (w *WsWriter) Close() error {
+	return w.Conn.Close()
+}
+
+func NewWsStdio(conn *websocket.Conn) (stdin *os.File, stdout, stderr *WsWriter, err error) {
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	mu := &sync.Mutex{}
-	stdin = &WsReader{Conn: conn}
 	stdout = &WsWriter{Conn: conn, Stream: StreamStdout, Mu: mu}
 	stderr = &WsWriter{Conn: conn, Stream: StreamStderr, Mu: mu}
-	return
+
+	// when cmd.Stdin is not an *os.File, it spawns a goroutine that conteniously
+	// reads from the reader till its exhausted.. websockets don't work that way
+	// because they're not really readers. Instead, we spawn our own goroutine
+	// and request the next reader from the websocket, copying it over to a pipe
+	// (an os *os.File).
+	go func() {
+		defer pw.Close()
+		for {
+			_, r, err := conn.NextReader()
+			if err != nil {
+				return
+			}
+			data, err := io.ReadAll(r)
+			if err != nil {
+				return
+			}
+			if len(data) == 1 && data[0] == 0x04 {
+				return
+			}
+			if _, err := pw.Write(data); err != nil {
+				return
+			}
+		}
+	}()
+
+	return pr, stdout, stderr, nil
 }

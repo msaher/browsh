@@ -219,11 +219,17 @@ func (app *App) startJob(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	stdin, stdout, stderr := NewWsStdio(conn)
+	stdin, stdout, stderr, err := NewWsStdio(conn)
+	if err != nil {
+		app.errorResponse(w, r, 500, err.Error())
+	}
 	stdio := shell.Stdio{Stdin: stdin, Stdout: stdout, Stderr: stderr}
 	app.infoLog.Printf("about to execute %s\n", job.Src)
 	err = app.Inter.ExecStr(job.Src, stdio)
-	app.errorLog.Println(err.Error())
+	if err != nil {
+		app.errorLog.Println(err.Error())
+	}
+	app.infoLog.Println("closed websocket")
 }
 
 func makeHandler(app *App) http.Handler {
