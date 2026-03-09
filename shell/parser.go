@@ -319,3 +319,12 @@ func (p *Parser) ParseAppend() (*Node, error) {
 	}
 	return node, nil
 }
+
+func Parse(src string) (*Node, error) {
+	toks, err := Scan(src)
+	if err != nil {
+		return nil, err
+	}
+	root, err := NewParser(toks).Parse()
+	return root, err
+}

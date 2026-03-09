@@ -1,5 +1,16 @@
 package main
 
+import (
+	"io"
+	"strings"
+	"strconv"
+	"log"
+	"encoding/json"
+	"net/http"
+	"errors"
+	"fmt"
+)
+
 func readJson(w http.ResponseWriter, r *http.Request, dst any) error {
 	maxBytes := 1_048_576
 	r.Body = http.MaxBytesReader(w, r.Body, int64(maxBytes))

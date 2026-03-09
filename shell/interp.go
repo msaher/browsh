@@ -64,21 +64,7 @@ func NewInterpreter(cwd string) *Interpreter {
 // closes cmd's stdout and stderr if they are files that don't belong to the
 // interpreter's own streams. handles both redirect files and pipe write ends.
 func closeOutput(inter *Interpreter, cmd *Cmd, stdio Stdio) {
-	if f, ok := cmd.Stdout.(*os.File); ok && f != nil {
-		if f != stdio.Stdout && f != stdio.Stderr {
-			f.Close()
-		}
-	}
-
-	if cmd.Stdout == cmd.Stderr {
-		return
-	}
-
-	if f, ok := cmd.Stderr.(*os.File); ok && f != nil {
-		if f != stdio.Stdout && f != stdio.Stderr {
-			f.Close()
-		}
-	}
+	return
 }
 
 func (inter *Interpreter) Exec(node *Node, stdio Stdio) error {
@@ -418,6 +404,14 @@ func (inter *Interpreter) ResolveDupOut(kid *Node) (int, int, error) {
 		return 0, 0, err
 	}
 	return srcFd, dstFd, nil
+}
+
+func (inter *Interpreter) ExecStr(src string, stdio Stdio) error {
+	root, err := Parse(src)
+	if err != nil {
+		return err
+	}
+	return inter.Exec(root, stdio)
 }
 
 func ExpandTilde(s string) string {

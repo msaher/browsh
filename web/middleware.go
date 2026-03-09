@@ -1,5 +1,10 @@
 package main
 
+import (
+	"net/http"
+	"log"
+)
+
 func noCache(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache")
