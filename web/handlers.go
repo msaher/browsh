@@ -229,7 +229,7 @@ func (app *App) startJob(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		app.errorLog.Println(err.Error())
 	}
-	app.infoLog.Println("closed websocket")
+	conn.Close()
 }
 
 func makeHandler(app *App) http.Handler {
