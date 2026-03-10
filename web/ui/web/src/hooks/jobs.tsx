@@ -3,6 +3,13 @@ import * as config from '../config'
 interface Job {
   id: number
   ws: WebSocket
+  status: 'running' | 'exited'
+  exitCode: number
+}
+
+export function isDone(j: Job | undefined) {
+  if (!j) return false
+  return j.exitCode !== -1
 }
 
 // TODO: handle errors
@@ -40,6 +47,6 @@ export async function startJob(id: number, onmessage: (event: MessageEvent) => v
 export async function registerAndStartJob(src: string, onmessage: (e: MessageEvent) => void) {
   const id = await registerJob(src)
   const ws = await startJob(id, onmessage)
-  const job = {id, ws}
+  const job = {id, ws, exitCode: -1}
   return job
 }
