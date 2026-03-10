@@ -77,7 +77,7 @@ func (r *Result) SetExitCode(code int) {
     r.mu.Unlock()
 }
 
-func (r *Result) SetError(err error) {
+func (r *Result) SetErr(err error) {
     r.mu.Lock()
     r.err = err
     r.mu.Unlock()
