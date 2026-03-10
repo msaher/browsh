@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"strings"
 	"time"
+	"errors"
 )
 
 type BuiltinFunc func(inter *Interpreter, cmd *Cmd, stdio Stdio)
@@ -226,13 +227,15 @@ func (inter *Interpreter) CmdWait(cmd *Cmd, stdio Stdio, result *Result) {
 	if !cmd.IsBuiltin {
 		err := cmd.Wait()
 		result.SetExitedAt(time.Now())
+		result.SetExitCode(cmd.ProcessState.ExitCode())
 		closeOutput(cmd, stdio)
-		if err != nil {
-			if exit, ok := err.(*exec.ExitError); ok {
-				result.SetExitCode(exit.ExitCode())
-			}
+
+		// dont consider ExitError as a real error
+		var exitErr *exec.ExitError
+		if err != nil && !errors.As(err, &exitErr) {
+			result.SetErr(err)
+			return
 		}
-		result.err = err
 		return
 	}
 	code := <-cmd.Done
