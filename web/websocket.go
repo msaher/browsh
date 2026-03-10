@@ -14,6 +14,7 @@ type StreamType string
 const (
 	StreamStdout StreamType = "stdout"
 	StreamStderr StreamType = "stderr"
+	StreamControl StreamType = "control"
 )
 
 type WsMessage struct {

@@ -225,11 +225,28 @@ func (app *App) startJob(w http.ResponseWriter, r *http.Request) {
 	}
 	stdio := shell.Stdio{Stdin: stdin, Stdout: stdout, Stderr: stderr}
 	app.infoLog.Printf("about to execute %s\n", job.Src)
-	err = app.Inter.ExecStr(job.Src, stdio)
-	if err != nil {
-		app.errorLog.Println(err.Error())
-	}
-	conn.Close()
+
+	result := shell.NewResult()
+	go func() {
+		app.Inter.ExecStrRes(job.Src, stdio, result)
+		if result.IsErr() {
+			app.errorLog.Println(result.Err())
+		}
+
+		exitMsg := struct {
+			Stream StreamType `json:"stream"`
+			ExitCode int `json:"exitCode"`
+		} {
+			Stream: StreamControl,
+			ExitCode: result.ExitCode(),
+		}
+
+		conn.WriteJSON(exitMsg)
+
+		conn.Close()
+
+	}()
+
 }
 
 func makeHandler(app *App) http.Handler {
