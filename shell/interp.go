@@ -20,15 +20,28 @@ var Builtins = map[string]BuiltinFunc{
 	":lua":  builtinLua,
 }
 
+type Result struct {
+	ExitCode int
+	StartedAt time.Time
+	ExitedAt time.Time
+	err error
+}
+
+func (r *Result) Err() error {
+	return r.err
+}
+
+func (r *Result) IsErr() bool {
+	return r.err != nil
+}
+
+// might want to move duration to Result
 type Cmd struct {
 	exec.Cmd
 	Id int
-	StartedAt time.Time
-	ExitedAt time.Time
 	// for builtins
 	IsBuiltin bool
 	Done      chan int
-	ExitCode  int
 }
 
 type Stdio struct {
@@ -74,32 +87,38 @@ func closeOutput(cmd *Cmd, stdio Stdio) {
     }
 }
 
-func (inter *Interpreter) Exec(node *Node, stdio Stdio) error {
+func (inter *Interpreter) Exec(node *Node, stdio Stdio) *Result {
+	result := Result{}
+	inter.exec(node, stdio, &result)
+	return &result
+}
+
+func (inter *Interpreter) exec(node *Node, stdio Stdio, result *Result) {
 	switch node.Token.Type {
 	case TokenAndIf:
 		for _, kid := range node.Kids {
-			if err := inter.Exec(kid, stdio); err != nil {
-				return err
+			if inter.exec(kid, stdio, result); result.IsErr() {
+				return
 			}
 		}
-		return nil
+		return
 
 	case TokenOrIf:
-		var err error
 		for _, kid := range node.Kids {
-			err = inter.Exec(kid, stdio)
-			if err == nil {
-				return nil
+			inter.exec(kid, stdio, result)
+			if result.IsErr() {
+				return
 			}
 		}
-		return err
+		return
 
 	case TokenPipe:
 		var cmds []*Cmd
 		for _, kid := range node.Kids {
 			cmd, err := inter.BuildCmd(kid, stdio)
 			if err != nil {
-				return err
+				result.err = err
+				return
 			}
 			cmds = append(cmds, cmd)
 		}
@@ -107,15 +126,18 @@ func (inter *Interpreter) Exec(node *Node, stdio Stdio) error {
 		if len(cmds) >= 1 {
 			inter.RegisterCmd(cmds[0])
 		}
-		return inter.RunPipe(cmds, stdio)
+		inter.RunPipe(cmds, stdio, result)
+		return
 
 	default:
 		cmd, err := inter.BuildCmd(node, stdio)
 		if err != nil {
-			return err
+			result.err = err
+			return
 		}
 		inter.RegisterCmd(cmd)
-		return inter.CmdRun(cmd, stdio)
+		inter.CmdRun(cmd, stdio, result)
+		return
 	}
 }
 
@@ -194,8 +216,8 @@ func (inter *Interpreter) BuildCmd(node *Node, stdio Stdio) (*Cmd, error) {
 }
 
 // starts the command. external commands call cmd.Start; builtins run in a goroutine.
-func (inter *Interpreter) CmdStart(cmd *Cmd, stdio Stdio) error {
-	cmd.StartedAt = time.Now()
+func (inter *Interpreter) CmdStart(cmd *Cmd, stdio Stdio, result *Result) error {
+	result.StartedAt = time.Now()
 	if !cmd.IsBuiltin {
 		return cmd.Start()
 	}
@@ -210,33 +232,31 @@ func (inter *Interpreter) CmdStart(cmd *Cmd, stdio Stdio) error {
 }
 
 // waits for the command to finish, populates cmd.ExitCode, and returns any error.
-func (inter *Interpreter) CmdWait(cmd *Cmd, stdio Stdio) error {
+func (inter *Interpreter) CmdWait(cmd *Cmd, stdio Stdio, result *Result) {
 	if !cmd.IsBuiltin {
 		err := cmd.Wait()
-		cmd.ExitedAt = time.Now()
+		result.ExitedAt = time.Now()
 		closeOutput(cmd, stdio)
 		if err != nil {
 			if exit, ok := err.(*exec.ExitError); ok {
-				cmd.ExitCode = exit.ExitCode()
+				result.ExitCode = exit.ExitCode()
 			}
 		}
-		return err
+		result.err = err
+		return
 	}
 	code := <-cmd.Done
-	cmd.ExitedAt = time.Now()
-	cmd.ExitCode = code
-	if code != 0 {
-		return fmt.Errorf("exit status %d", code)
-	}
-	return nil
+	result.ExitedAt = time.Now()
+	result.ExitCode = code
 }
 
 // runs the command to completion.
-func (inter *Interpreter) CmdRun(cmd *Cmd, stdio Stdio) error {
-	if err := inter.CmdStart(cmd, stdio); err != nil {
-		return err
+func (inter *Interpreter) CmdRun(cmd *Cmd, stdio Stdio, result *Result) {
+	if inter.CmdStart(cmd, stdio, result); result.IsErr() {
+		return
 	}
-	return inter.CmdWait(cmd, stdio)
+	inter.CmdWait(cmd, stdio, result)
+	return
 }
 
 // connects each cmd's stdout to the next cmd's stdin using os.Pipe.
@@ -255,30 +275,33 @@ func WirePipe(cmds []*Cmd) error {
 }
 
 // starts and waits for a pipeline, returning the exit status of the last command.
-func (inter *Interpreter) RunPipe(cmds []*Cmd, stdio Stdio) error {
+func (inter *Interpreter) RunPipe(cmds []*Cmd, stdio Stdio, result *Result) {
 	if err := WirePipe(cmds); err != nil {
-		return err
+		result.err = err
+		return
 	}
 
 	// TODO: what about builtins?
 	// first command creates a process group
 	cmds[0].SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := inter.CmdStart(cmds[0], stdio); err != nil {
-		return err
+	if inter.CmdStart(cmds[0], stdio, result); result.IsErr() {
+		return
 	}
 	pgid := cmds[0].SysProcAttr.Pgid
 	for _, cmd := range cmds[1:] {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: pgid}
-		if err := inter.CmdStart(cmd, stdio); err != nil {
-			return err
+		if inter.CmdStart(cmd, stdio, result); result.IsErr() {
+			return
 		}
 	}
 
-	var lastErr error
 	for _, cmd := range cmds {
-		lastErr = inter.CmdWait(cmd, stdio)
+		inter.CmdWait(cmd, stdio, result)
+		if result.IsErr() {
+			return
+		}
 	}
-	return lastErr
+	return
 }
 
 // ApplyOut sets cmd.Stdout or cmd.Stderr for a ">" redirect node.
@@ -413,10 +436,12 @@ func (inter *Interpreter) ResolveDupOut(kid *Node) (int, int, error) {
 	return srcFd, dstFd, nil
 }
 
-func (inter *Interpreter) ExecStr(src string, stdio Stdio) error {
+func (inter *Interpreter) ExecStr(src string, stdio Stdio) *Result {
+	result := &Result{}
 	root, err := Parse(src)
 	if err != nil {
-		return err
+		result.err = err
+		return result
 	}
 	return inter.Exec(root, stdio)
 }
