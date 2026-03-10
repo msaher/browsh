@@ -20,21 +20,6 @@ var Builtins = map[string]BuiltinFunc{
 	":lua":  builtinLua,
 }
 
-type Result struct {
-	ExitCode int
-	StartedAt time.Time
-	ExitedAt time.Time
-	err error
-}
-
-func (r *Result) Err() error {
-	return r.err
-}
-
-func (r *Result) IsErr() bool {
-	return r.err != nil
-}
-
 // might want to move duration to Result
 type Cmd struct {
 	exec.Cmd
@@ -91,6 +76,10 @@ func (inter *Interpreter) Exec(node *Node, stdio Stdio) *Result {
 	result := Result{}
 	inter.exec(node, stdio, &result)
 	return &result
+}
+
+func (inter *Interpreter) ExecRes(node *Node, stdio Stdio, result *Result) {
+	inter.exec(node, stdio, result)
 }
 
 func (inter *Interpreter) exec(node *Node, stdio Stdio, result *Result) {
@@ -217,7 +206,7 @@ func (inter *Interpreter) BuildCmd(node *Node, stdio Stdio) (*Cmd, error) {
 
 // starts the command. external commands call cmd.Start; builtins run in a goroutine.
 func (inter *Interpreter) CmdStart(cmd *Cmd, stdio Stdio, result *Result) error {
-	result.StartedAt = time.Now()
+	result.SetStartedAt(time.Now())
 	if !cmd.IsBuiltin {
 		return cmd.Start()
 	}
@@ -233,21 +222,22 @@ func (inter *Interpreter) CmdStart(cmd *Cmd, stdio Stdio, result *Result) error 
 
 // waits for the command to finish, populates cmd.ExitCode, and returns any error.
 func (inter *Interpreter) CmdWait(cmd *Cmd, stdio Stdio, result *Result) {
+	result.SetCurrentCmd(cmd)
 	if !cmd.IsBuiltin {
 		err := cmd.Wait()
-		result.ExitedAt = time.Now()
+		result.SetExitedAt(time.Now())
 		closeOutput(cmd, stdio)
 		if err != nil {
 			if exit, ok := err.(*exec.ExitError); ok {
-				result.ExitCode = exit.ExitCode()
+				result.SetExitCode(exit.ExitCode())
 			}
 		}
 		result.err = err
 		return
 	}
 	code := <-cmd.Done
-	result.ExitedAt = time.Now()
-	result.ExitCode = code
+	result.SetExitedAt(time.Now())
+	result.SetExitCode(code)
 }
 
 // runs the command to completion.
@@ -436,14 +426,13 @@ func (inter *Interpreter) ResolveDupOut(kid *Node) (int, int, error) {
 	return srcFd, dstFd, nil
 }
 
-func (inter *Interpreter) ExecStr(src string, stdio Stdio) *Result {
-	result := &Result{}
+func (inter *Interpreter) ExecStrRes(src string, stdio Stdio, result *Result) {
 	root, err := Parse(src)
 	if err != nil {
 		result.err = err
-		return result
+		return
 	}
-	return inter.Exec(root, stdio)
+	inter.exec(root, stdio, result)
 }
 
 func ExpandTilde(s string) string {
