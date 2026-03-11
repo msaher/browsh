@@ -50,3 +50,12 @@ export async function registerAndStartJob(src: string, onmessage: (e: MessageEve
   const job = {id, ws, exitCode: -1}
   return job
 }
+
+export async function signal(j: Job, signal: string) {
+  const res = await fetch(`${config.API_URL}/job/${j.id}/signal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ signal: signal })
+  });
+}
+

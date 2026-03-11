@@ -84,19 +84,19 @@ export default function Block(props: BlockProps) {
   })
 
   function onStop() {
-    // TODO: send SIGTERM
+    jobs.signal(job(), "SIGINT")
   }
 
   function onKill() {
-    // TODO: send SIGKILL
+    jobs.signal(job(), "SIGKILL")
   }
 
   function onPauseResume() {
     if (status() === 'paused') {
-      // TODO: send SIGCONT
+      jobs.signal(job(), "SIGCONT")
       setStatus('running')
     } else {
-      // TODO: send SIGSTOP
+      jobs.signal(job(), "SIGSTOP")
       setStatus('paused')
     }
   }
