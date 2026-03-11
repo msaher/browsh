@@ -233,15 +233,12 @@ func (app *App) startJob(w http.ResponseWriter, r *http.Request) {
 			app.errorLog.Println(result.Err())
 		}
 
-		exitMsg := struct {
-			Stream StreamType `json:"stream"`
-			ExitCode int `json:"exitCode"`
-		} {
-			Stream: StreamControl,
-			ExitCode: result.ExitCode(),
+		msg := map[string]any {
+			"kind": "exit",
+			"stream": StreamControl,
+			"exitCode": job.Result.ExitCode(),
 		}
-
-		conn.WriteJSON(exitMsg)
+		conn.WriteJSON(msg)
 
 		conn.Close()
 
