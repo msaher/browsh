@@ -1,0 +1,134 @@
+.block {
+  background: #0e0e0f;
+  border: 1px solid #222;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+  font-family: 'Berkeley Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  margin-top: 3rem;
+}
+
+.block.running { border-color: #2a4a7f; }
+.block.paused  { border-color: #3a3a1a; }
+.block.ok      { border-color: #1a3a2a; }
+.block.err     { border-color: #3a1a1a; }
+
+.block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #111;
+  border-bottom: 1px solid #1a1a1a;
+  gap: 12px;
+  min-height: 36px;
+}
+
+.block-src {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.block-sigil {
+  font-size: 12px;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+  color: #333;
+}
+
+.block.running .block-sigil { color: #4a9eff; }
+.block.paused  .block-sigil { color: #9a9a3a; }
+.block.ok      .block-sigil { color: #3a9a5a; }
+.block.err     .block-sigil { color: #9a3a3a; }
+
+.block-cmd {
+  font-size: 12px;
+  color: #888;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.block-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.exit-badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.exit-badge.ok  { color: #3a9a5a; background: #0a1f12; }
+.exit-badge.err { color: #c0504a; background: #1f0a0a; }
+
+.running-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4a9eff;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.paused-label {
+  font-size: 11px;
+  color: #9a9a3a;
+  letter-spacing: 0.05em;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.block-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #555;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+  padding: 0;
+}
+
+.action-btn:hover         { color: #aaa; background: #1a1a1a; }
+.action-btn.danger:hover  { color: #c0504a; background: #1f0a0a; }
+
+.copied-text {
+  font-size: 11px;
+  color: #3a9a5a;
+}
+
+.block-output {
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #ccc;
+  min-height: 20px;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.block-output:empty { display: none; }
+
+.line { display: block; }
