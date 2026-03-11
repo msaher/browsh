@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"embed"
 	"net/http"
+	"syscall"
 
 	"github.com/msaher/browsh/shell"
 
@@ -246,6 +247,44 @@ func (app *App) startJob(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (app *App) signal(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Signal string `json:"signal"`
+	}
+
+	err := readJson(w, r, &payload)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	id := int(int64PathValue(r, "id"))
+	job, exists := app.Jobs[id]
+	if !exists {
+		app.notFound(w, r, "not found")
+		return
+	}
+	result := job.Result
+
+	sigMap := map[string]syscall.Signal{
+		"SIGTERM": syscall.SIGTERM,
+		"SIGKILL": syscall.SIGKILL,
+		"SIGSTOP": syscall.SIGSTOP,
+		"SIGCONT": syscall.SIGCONT,
+		"SIGINT":  syscall.SIGINT,
+	}
+	sig, exists := sigMap[payload.Signal]
+	if !exists {
+		app.errorResponse(w, r, http.StatusBadRequest, "unknown signal")
+		return
+	}
+
+	err = app.Inter.Signal(result, sig)
+	if err != nil {
+		app.errorLog.Printf("%v", err)
+	}
+}
+
 func makeHandler(app *App) http.Handler {
 	mux := http.NewServeMux()
 
@@ -260,6 +299,7 @@ func makeHandler(app *App) http.Handler {
 
 	mux.HandleFunc("POST /job/register", app.registerCmd)
 	mux.HandleFunc("GET /job/{id}/ws", app.startJob)
+	mux.HandleFunc("POST /job/{id}/signal", app.signal)
 	mux.HandleFunc("/", app.unkownPath)
 
 	var handler http.Handler
