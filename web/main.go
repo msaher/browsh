@@ -27,6 +27,7 @@ type Cmd struct {
 type Job struct {
 	Id int
 	Src string
+	Result *shell.Result
 }
 
 type App struct {

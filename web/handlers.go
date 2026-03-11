@@ -226,11 +226,11 @@ func (app *App) startJob(w http.ResponseWriter, r *http.Request) {
 	stdio := shell.Stdio{Stdin: stdin, Stdout: stdout, Stderr: stderr}
 	app.infoLog.Printf("about to execute %s\n", job.Src)
 
-	result := shell.NewResult()
+	job.Result = shell.NewResult()
 	go func() {
-		app.Inter.ExecStrRes(job.Src, stdio, result)
-		if result.IsErr() {
-			app.errorLog.Println(result.Err())
+		app.Inter.ExecStrRes(job.Src, stdio, job.Result)
+		if job.Result.IsErr() {
+			app.errorLog.Println(job.Result.Err())
 		}
 
 		msg := map[string]any {
