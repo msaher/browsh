@@ -279,6 +279,10 @@ func (app *App) signal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if result.CurrentCmd().IsBuiltin {
+		app.badRequestResponse(w, r, fmt.Errorf("signals are not yet implemented for builtin cmds"))
+	}
+
 	err = app.Inter.Signal(result, sig)
 	if err != nil {
 		app.errorLog.Printf("%v", err)
