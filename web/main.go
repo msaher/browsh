@@ -181,25 +181,6 @@ func (app *App) cmdSignal(w http.ResponseWriter, r *http.Request) {
 	writeJson(w, http.StatusOK, Envelope{"msg": "all good"}, nil)
 }
 
-func (app *App) complete(w http.ResponseWriter, r *http.Request) {
-	var payload struct {
-		Text string `json:"text"`
-	}
-	err := readJson(w, r, &payload)
-	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
-	}
-
-	result, err := complete(payload.Text)
-	if err != nil {
-		app.badRequestResponse(w, r, err)
-		return
-	}
-
-	writeJson(w, http.StatusOK, Envelope{"result": result}, nil)
-}
-
 func entryPoint() int {
 	app := NewApp()
 

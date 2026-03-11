@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/fs"
 	"embed"
 	"net/http"
@@ -289,6 +290,19 @@ func (app *App) signal(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (app *App) complete(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Src    string `json:"src"`
+		Cursor int    `json:"cursor"`
+	}
+	if err := readJson(w, r, &payload); err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	completions := app.Inter.Complete(payload.Src, payload.Cursor)
+	writeJson(w, http.StatusOK, Envelope{"completions": completions}, nil)
+}
+
 func makeHandler(app *App) http.Handler {
 	mux := http.NewServeMux()
 
@@ -304,6 +318,7 @@ func makeHandler(app *App) http.Handler {
 	mux.HandleFunc("POST /job/register", app.registerCmd)
 	mux.HandleFunc("GET /job/{id}/ws", app.startJob)
 	mux.HandleFunc("POST /job/{id}/signal", app.signal)
+	mux.HandleFunc("POST /complete", app.complete)
 	mux.HandleFunc("/", app.unkownPath)
 
 	var handler http.Handler
