@@ -61,6 +61,16 @@ export default function Block(props: BlockProps) {
   const isDone = () => status() === 'ok' || status() === 'err'
   const exitCode = () => job()?.exitCode ?? -1
 
+  function onOutputMount(el: HTMLDivElement) {
+    outputRef = el
+    el.addEventListener('submit', (e) => {
+      e.preventDefault()
+      const form = e.target as HTMLFormElement
+      const data = Object.fromEntries(new FormData(form))
+      jobs.sendStdin(job(), JSON.stringify(data) + '\n')
+    })
+  }
+
   function onmessage(event: MessageEvent) {
     if (!outputRef || !event.data) return
     const msg = JSON.parse(event.data)
@@ -70,10 +80,7 @@ export default function Block(props: BlockProps) {
       return
     }
     if (msg.data) {
-      const line = document.createElement('span')
-      line.className = 'line'
-      line.textContent = msg.data
-      outputRef.appendChild(line)
+      outputRef.insertAdjacentHTML('beforeend', msg.data)
       outputRef.scrollTop = outputRef.scrollHeight
     }
   }
@@ -157,7 +164,7 @@ export default function Block(props: BlockProps) {
           </div>
         </div>
       </div>
-      <div ref={el => (outputRef = el)} class="block-output" />
+      <div ref={onOutputMount} class="block-output" />
       <Show when={isRunning()}>
         <div class="block-stdin">
           <span class="stdin-sigil">›</span>
