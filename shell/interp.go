@@ -472,6 +472,20 @@ func (inter *Interpreter) ExpandWord(word string) ([]string, error) {
 	return matches, nil
 }
 
+func (inter *Interpreter) Signal(result *Result, sig os.Signal) error {
+	result.mu.Lock()
+	defer result.mu.Unlock()
+	if result.exitCode != -1 { // already exited
+		return nil
+	}
+	cmd := result.currentCmd
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+
+	return cmd.Process.Signal(sig)
+}
+
 func ContainsGlob(s string) bool {
 	return strings.ContainsAny(s, "*?[")
 }
