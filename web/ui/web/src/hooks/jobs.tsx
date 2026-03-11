@@ -59,3 +59,10 @@ export async function signal(j: Job, signal: string) {
   });
 }
 
+export async function sendStdin(j: Job, input: string) {
+  j.ws.send(input)
+}
+
+export async function sendEOF(j: Job) {
+  j.ws.send('\x04')
+}

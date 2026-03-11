@@ -105,6 +105,21 @@ export default function Block(props: BlockProps) {
     navigator.clipboard.writeText(outputRef?.innerText ?? '')
   }
 
+  function inputOnKeydown(e: any) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const val = e.currentTarget.value
+      if (!val) return
+        jobs.sendStdin(job(), val + '\n')
+      e.currentTarget.value = ''
+    }
+    if (e.key === 'd' && e.ctrlKey) {
+      e.preventDefault()
+      jobs.sendEOF(job())
+      e.currentTarget.value = ''
+    }
+  }
+
   return (
     <div classList={{ block: true, running: status() === 'running', paused: status() === 'paused', ok: status() === 'ok', err: status() === 'err' }}>
       <div class="block-header">
@@ -143,6 +158,22 @@ export default function Block(props: BlockProps) {
         </div>
       </div>
       <div ref={el => (outputRef = el)} class="block-output" />
+      <Show when={isRunning()}>
+        <div class="block-stdin">
+          <span class="stdin-sigil">›</span>
+          <input
+            class="stdin-input"
+            type="text"
+            placeholder="stdin..."
+            spellcheck={false}
+            autocomplete="off"
+            onKeyDown={inputOnKeydown}
+          />
+          <button class="eof-btn" onClick={() => jobs.sendEOF(job())} title="Send EOF (Ctrl+D)">
+            EOF
+          </button>
+        </div>
+      </Show>
     </div>
   )
 }
