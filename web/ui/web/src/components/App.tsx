@@ -9,7 +9,7 @@ const App: Component = () => {
   const [blocks, setBlocks] = createSignal<BlockProps[]>([]);
 
   function onSubmit(src: string) {
-    setBlocks([...blocks(), {src}]);
+    setBlocks([{src}, ...blocks()]);
   }
 
   return (
