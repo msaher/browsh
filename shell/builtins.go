@@ -81,5 +81,3 @@ func builtinLua(inter *Interpreter, cmd *Cmd, stdio Stdio) {
 	}
 	cmd.Done <- 0
 }
-
-
