@@ -6,6 +6,19 @@ interface Props {
   onSubmit: (src: string) => void;
 }
 
+// NOTE: highlighting is really dumb and simple, but we should be okay
+// considering that input is often small
+function highlight(src: string): string {
+  return src
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/(".*?"|'.*?')/g, '<span class="hl-string">$1</span>')
+    .replace(/\b(local|function|for|if|then|else|end|nil|true|false|return|in|do)\b/g, '<span class="hl-keyword">$1</span>')
+    .replace(/(:lua)/g, '<span class="hl-lua">$1</span>')
+    .replace(/(&&|\|\||[|])/g, '<span class="hl-op">$1</span>')
+}
+
 export default function Prompt(props: Props) {
   const [src, setSrc] = createSignal('');
   const [focused, setFocused] = createSignal(false);
@@ -100,19 +113,22 @@ export default function Prompt(props: Props) {
   return (
     <div classList={{ 'prompt-wrap': true, focused: focused() }}>
       <span class="prompt-sigil">❯</span>
-      <textarea
-        ref={textareaRef}
-        class="prompt-input"
-        placeholder="type a command..."
-        rows={1}
-        value={src()}
-        onInput={onInput}
-        onKeyDown={onKeyDown}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        spellcheck={false}
-        autocomplete="off"
-      />
+      <div class="prompt-editor">
+        <div class="prompt-highlight" innerHTML={highlight(src()) + '&nbsp;'} />
+        <textarea
+          ref={textareaRef}
+          class="prompt-input"
+          placeholder="type a command..."
+          rows={1}
+          value={src()}
+          onInput={onInput}
+          onKeyDown={onKeyDown}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          spellcheck={false}
+          autocomplete="off"
+        />
+      </div>
       <kbd class="prompt-hint">⏎ run</kbd>
     </div>
   );
