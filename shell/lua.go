@@ -44,18 +44,14 @@ func registerSh(L *lua.LState, inter *Interpreter, cmd *Cmd) {
 
 	reader := bufio.NewReader(cmd.Stdin)
 	sh.RawSetString("stdin", L.NewFunction(func(L *lua.LState) int {
-		line, err := reader.ReadString('\n')
-		line = strings.TrimRight(line, "\n")
-		if line != "" {
-			L.Push(lua.LString(line))
-			return 1
-		}
-		if err != nil {
-			L.Push(lua.LNil)
-			return 1
-		}
-		L.Push(lua.LNil)
-		return 1
+	    line, err := reader.ReadString('\n')
+	    line = strings.TrimRight(line, "\n")
+	    if err != nil && line == "" {
+	        L.Push(lua.LNil)
+	        return 1
+	    }
+	    L.Push(lua.LString(line))
+	    return 1
 	}))
 
 	sh.RawSetString("exit", L.NewFunction(func(L *lua.LState) int {
