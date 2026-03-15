@@ -21,7 +21,6 @@ func logHandler(next http.Handler) http.Handler {
 
 func enableCors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: make this stricter
 		// allow any origin
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 
