@@ -22,6 +22,9 @@ function highlight(src: string): string {
 export default function Prompt(props: Props) {
   const [src, setSrc] = createSignal('');
   const [focused, setFocused] = createSignal(false);
+  const [history, setHistory] = createSignal<string[]>([])
+  const [histIndex, setHistIndex] = createSignal(-1)
+
   const [completions, setCompletions] = createSignal<string[]>([])
   const [compIndex, setCompIndex] = createSignal(-1)
   const [baseWord, setBaseWord] = createSignal('')
@@ -65,6 +68,20 @@ export default function Prompt(props: Props) {
     resize();
   }
 
+
+  function navigateHistory(dir: -1 | 1) {
+    const h = history()
+    if (h.length === 0) return
+
+      let nextIndex
+      if (histIndex() < 0) nextIndex = dir === -1 ? h.length - 1 : -1
+        else nextIndex = Math.min(h.length - 1, Math.max(-1, histIndex() + dir))
+
+          setHistIndex(nextIndex)
+          setSrc(nextIndex >= 0 ? h[nextIndex] : '')
+          if (textareaRef) textareaRef.setSelectionRange(src().length, src().length)
+  }
+
   async function onKeyDown(e: KeyboardEvent & { currentTarget: HTMLTextAreaElement }) {
     if (e.key === 'Tab') {
       e.preventDefault()
@@ -101,6 +118,8 @@ export default function Prompt(props: Props) {
       const val = src().trim();
       if (!val) return;
       props.onSubmit(val);
+      setHistory([...history(), val])
+      setHistIndex(-1)
       setSrc('');
       clearCompletions()
       if (textareaRef) {
@@ -108,6 +127,13 @@ export default function Prompt(props: Props) {
         textareaRef.style.height = 'auto';
       }
     }
+
+    if (e.altKey && (e.key === 'p' || e.key === 'n')) {
+      e.preventDefault()
+      navigateHistory(e.key === 'p' ? -1 : 1)
+      return
+    }
+
   }
 
   return (
@@ -118,7 +144,7 @@ export default function Prompt(props: Props) {
         <textarea
           ref={textareaRef}
           class="prompt-input"
-          placeholder="type a command..."
+          placeholder="use alt+p and alt+n for history..."
           rows={1}
           value={src()}
           onInput={onInput}
