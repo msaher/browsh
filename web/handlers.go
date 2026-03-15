@@ -209,7 +209,6 @@ func (app *App) startJob(w http.ResponseWriter, r *http.Request) {
 	var upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
-		// TODO: temp
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
@@ -223,10 +222,9 @@ func (app *App) startJob(w http.ResponseWriter, r *http.Request) {
 
 	stdin, stdout, stderr, err := NewWsStdio(conn)
 	if err != nil {
-		app.errorResponse(w, r, 500, err.Error())
+		app.errorResponse(w, r, http.StatusInternalServerError, err.Error())
 	}
 	stdio := shell.Stdio{Stdin: stdin, Stdout: stdout, Stderr: stderr}
-	app.infoLog.Printf("about to execute %s\n", job.Src)
 
 	job.Result = shell.NewResult()
 	go func() {
