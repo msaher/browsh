@@ -36,6 +36,7 @@ type App struct {
 	Jobs map[int]*Job
 	infoLog *log.Logger
 	errorLog *log.Logger
+	debug bool
 }
 
 func NewApp() *App {
@@ -186,9 +187,10 @@ func entryPoint() int {
 
 	addr := flag.String("addr", "", "address")
 	port := flag.Int("port", 4981, "port")
+	debug := flag.Bool("debug", false, "debug mode")
 	flag.Parse()
 
-	addr := fmt.Sprintf(":%d", *port)
+	app.debug = *debug
 
 	fullAddr := fmt.Sprintf("%s:%d", *addr, *port)
 	server := http.Server {

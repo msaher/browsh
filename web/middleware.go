@@ -12,10 +12,12 @@ func noCache(next http.Handler) http.Handler {
 	})
 }
 
-func logHandler(next http.Handler) http.Handler {
+func (app *App) logHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	    next.ServeHTTP(w, r)
-	    log.Printf("%s %s\n", r.Method, r.URL.Path)
+		if app.debug {
+			log.Printf("%s %s\n", r.Method, r.URL.Path)
+		}
 	})
 }
 

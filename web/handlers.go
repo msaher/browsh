@@ -151,6 +151,6 @@ func makeHandler(app *App) http.Handler {
 	var handler http.Handler
 	handler = mux
 	handler = enableCors(handler)
-	handler = logHandler(handler)
+	handler = app.logHandler(handler)
 	return handler
 }
