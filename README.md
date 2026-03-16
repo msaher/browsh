@@ -1,6 +1,6 @@
 # browsh
 
-[recording.webm](https://github.com/user-attachments/assets/142746cb-9ea3-4d13-a5f3-35bc15ec9700)
+https://github.com/user-attachments/assets/142746cb-9ea3-4d13-a5f3-35bc15ec9700
 
 A web-based shell with first-class lua support.
 
