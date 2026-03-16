@@ -130,23 +130,29 @@ func (app *App) complete(w http.ResponseWriter, r *http.Request) {
 	writeJson(w, http.StatusOK, Envelope{"completions": completions}, nil)
 }
 
+//go:embed ui/dist/*
+var uiFiles embed.FS
+
 func makeHandler(app *App) http.Handler {
 	mux := http.NewServeMux()
 
-	staticFiles, err := fs.Sub(uiFiles, "ui/static")
-	if err != nil {
-		panic(err)
-	}
-	fileServer := http.FileServer(http.FS(staticFiles))
-	fileServer = http.StripPrefix("/static/", fileServer)
-	//  TODO: enable cache in production
-	mux.Handle("/static/", noCache(fileServer))
-
+	// backend
 	mux.HandleFunc("POST /job/register", app.registerCmd)
 	mux.HandleFunc("GET /job/{id}/ws", app.startJob)
 	mux.HandleFunc("POST /job/{id}/signal", app.signal)
 	mux.HandleFunc("POST /complete", app.complete)
-	mux.HandleFunc("/", app.unkownPath)
+
+	// frontend
+	subFS, _ := fs.Sub(uiFiles, "ui/dist")
+	mux.Handle("/assets/", http.FileServer(http.FS(subFS)))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	    data, err := uiFiles.ReadFile("ui/dist/index.html")
+	    if err != nil {
+	        http.Error(w, "index.html not found", http.StatusInternalServerError)
+	        return
+	    }
+	    w.Write(data)
+	})
 
 	var handler http.Handler
 	handler = mux
