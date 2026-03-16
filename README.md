@@ -1,5 +1,7 @@
 # browsh
 
+[recording.webm](https://github.com/user-attachments/assets/142746cb-9ea3-4d13-a5f3-35bc15ec9700)
+
 A web-based shell with first-class lua support.
 
 Why? Terminals are nice, but they're stuck with plain text. They can't mix fonts or display buttons or forms. TUI style interfaces are non-trivial to make and almost certainly require a dependency. It'd be great if programs were able to output some form of markup to describe how to render their output... If only there was a standardized markup language that's widely used...
