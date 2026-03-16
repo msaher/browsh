@@ -1,6 +1,6 @@
 # browsh
 
-https://github.com/user-attachments/assets/142746cb-9ea3-4d13-a5f3-35bc15ec9700
+https://github.com/user-attachments/assets/a8ae15e6-7c8c-4a83-bae2-75a1ab691c51
 
 A web-based shell with first-class lua support.
 
