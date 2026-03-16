@@ -184,17 +184,23 @@ func (app *App) cmdSignal(w http.ResponseWriter, r *http.Request) {
 func entryPoint() int {
 	app := NewApp()
 
-
-	port := flag.Int("port", 8000, "port")
+	addr := flag.String("addr", "", "address")
+	port := flag.Int("port", 4981, "port")
 	flag.Parse()
 
 	addr := fmt.Sprintf(":%d", *port)
+
+	fullAddr := fmt.Sprintf("%s:%d", *addr, *port)
 	server := http.Server {
-		Addr: addr,
+		Addr: fullAddr,
 		Handler: makeHandler(app),
 	}
 
-	log.Printf("Listening on :%d", *port)
+
+	if *addr == "" {
+		*addr = "http://localhost"
+	}
+	log.Printf("Listening on %s:%d", *addr, *port)
 
 	err := server.ListenAndServe()
 	if err != nil {
