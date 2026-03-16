@@ -78,7 +78,7 @@ func entryPoint() int {
 	if *addr == "" {
 		*addr = "http://localhost"
 	}
-	fmt.Printf("Listening on %s:%d", *addr, *port)
+	fmt.Printf("Listening on %s:%d\n", *addr, *port)
 
 	err := server.ListenAndServe()
 	if err != nil {
