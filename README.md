@@ -42,6 +42,8 @@ cat server.log
 | sort -n
 ```
 
+Notice how pipes can be separated by newlines? browsh fixes posix shell rules. No more ugly `\ |`.
+
 # Usage
 
 Run `make` to build `browsh`.
